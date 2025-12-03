@@ -8,3 +8,4 @@ pypdf>=4.2.0
 PyMuPDF
 pytesseract
 pillow
+FlagEmbedding>=1.2.10

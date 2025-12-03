@@ -1,1 +1,3 @@
 *.pdf
+.env
+vector_db/esg_all/

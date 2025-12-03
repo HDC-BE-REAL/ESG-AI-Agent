@@ -43,6 +43,32 @@ NAV_MENU_WORDS = {
     "APPENDIX",
 }
 
+COUNTRY_BY_SOURCE = {
+    "domestic": "KR",
+    "companies": "KR",
+    "global": "GLOBAL",
+}
+
+
+def infer_pdf_metadata(pdf_path: Path, source_type: str) -> dict:
+    """Extract company/year/country metadata from filename and folder."""
+
+    stem = pdf_path.stem
+    company = stem.split("_")[0].strip()
+    year_match = re.search(r"(20\\d{2})", stem)
+    year = year_match.group(1) if year_match else None
+
+    meta = {}
+    if company:
+        meta["company"] = company
+    if year:
+        meta["year"] = year
+
+    country = COUNTRY_BY_SOURCE.get(source_type)
+    if country:
+        meta["country"] = country
+    return meta
+
 
 # -------------------------------------------------------
 # 1. 텍스트/OCR 추출 도우미
@@ -219,6 +245,8 @@ def process_pdf(pdf_path, source_type):
 
     headers, footers = detect_repeating_headers_footers(page_texts)
 
+    base_meta = infer_pdf_metadata(pdf_path, source_type)
+
     cleaned_pages = []
     ocr_targets = []
     qc_events = []
@@ -250,6 +278,7 @@ def process_pdf(pdf_path, source_type):
             "source_type": source_type,
             "page": page_num,
         })
+        metadata.update(base_meta)
         p.metadata = metadata
         cleaned_pages.append(p)
 
@@ -259,15 +288,17 @@ def process_pdf(pdf_path, source_type):
     for page_num, text in ocr_list:
         cleaned = clean_text_basic(text)
         if cleaned:
+            ocr_meta = {
+                "source_file": pdf_path.name,
+                "source_type": source_type,
+                "ocr": True,
+                "page": page_num,
+            }
+            ocr_meta.update(base_meta)
             ocr_docs.append(
                 Document(
                     page_content=cleaned,
-                    metadata={
-                        "source_file": pdf_path.name,
-                        "source_type": source_type,
-                        "ocr": True,
-                        "page": page_num,
-                    },
+                    metadata=ocr_meta,
                 )
             )
 
