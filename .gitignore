@@ -1,0 +1,6 @@
+.venv/
+.env.template
+.env
+
+pdf_folder/
+*.pdf

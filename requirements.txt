@@ -1,0 +1,34 @@
+# Core RAG 파이프라인
+llama-parse>=0.4.0
+llama-index>=0.10.0
+
+# LangChain 프레임워크
+langchain>=0.1.0
+langchain-community>=0.0.20
+
+# 임베딩 모델 (한국어 특화)
+sentence-transformers>=2.2.0
+transformers>=4.30.0
+
+# 벡터 데이터베이스
+chromadb>=0.4.0
+
+# 기타 유틸리티
+PyPDF2>=3.0.0
+pydantic>=2.0.0
+tiktoken>=0.5.0
+
+# 선택사항: 더 빠른 임베딩을 위한 GPU 지원
+# torch>=2.0.0  # CPU 버전 (기본)
+# torch>=2.0.0+cu118  # CUDA 11.8용 (GPU)
+
+# 선택사항: API 기반 LLM (답변 생성용)
+openai>=1.0.0
+anthropic>=0.18.0
+
+# 선택사항: 대안 임베딩 서비스
+# pinecone-client>=2.2.0  # Pinecone 벡터 DB
+# Report Generation
+pandas>=2.0.0
+python-docx>=1.0.0
+matplotlib>=3.7.0
