@@ -62,6 +62,25 @@ MINISTRY_TARGETS = [
     }
 ]
 
+# [변경] 신뢰할 수 있는 뉴스 소스 도메인 목록
+TRUSTED_NEWS_DOMAINS = [
+    "yna.co.kr",       # 연합뉴스
+    "mk.co.kr",        # 매일경제
+    "hankyung.com",    # 한국경제
+    "sedaily.com",     # 서울경제
+    "lawtimes.co.kr",  # 법률신문
+    "korea.kr",        # 대한민국 정책브리핑
+    "chosun.com",      # 조선일보
+    "joongang.co.kr",  # 중앙일보
+    "donga.com",       # 동아일보
+    "khan.co.kr",      # 경향신문
+    "etnews.com",      # 전자신문
+    "mt.co.kr",        # 머니투데이
+    "me.go.kr",        # 환경부
+    "motie.go.kr",     # 산업통상자원부
+    "fsc.go.kr"        # 금융위원회
+]
+
 class RegulationMonitor:
     """
     [규제 모니터링 엔진 - AI Enhanced]
@@ -102,7 +121,10 @@ class RegulationMonitor:
         else:
             self.vector_db = None
 
-        self.tavily = TavilySearchResults(max_results=5)
+        self.tavily = TavilySearchResults(
+            max_results=5,
+            include_domains=TRUSTED_NEWS_DOMAINS
+        )
         
         os.makedirs(DOWNLOAD_DIR, exist_ok=True)
         os.makedirs(HISTORY_DIR, exist_ok=True)
@@ -687,12 +709,32 @@ class RegulationMonitor:
                 result_str += f"- **[{r['source']}]** {r['title']}\n"
                 result_str += f"  - 💾 다운로드: `{files_msg}`\n"
         else:
-            result_str += "### ✅ 신규 자료 없음 (모두 최신 상태)\n"
+            result_str += "### 🆕 신규 보고서 및 법령 개정안\n"
+            result_str += "- 새롭게 변경된 정책이 없습니다.\n"
             
-        result_str += "\n### 📰 주요 뉴스 및 입법 동향\n"
+        result_str += "\n### 📰 주요 뉴스 및 입법 동향 (AI 요약)\n"
         if clean_news:
-            for n in clean_news:
-                result_str += f"- {n['content'][:100]}...\n  🔗 [기사]({n['url']})\n"
+            # 상위 3개 뉴스만 요약
+            top_news = clean_news[:3]
+            for i, n in enumerate(top_news):
+                print(f"   🤖 [AI 요약] 뉴스 {i+1}/{len(top_news)} 요약 중...")
+                try:
+                    prompt = f"""
+                    다음 뉴스 기사를 한국어로 3줄 요약해주세요. 핵심 내용 위주로 간결하게 작성하세요.
+                    
+                    기사 내용: {n['content']}
+                    """
+                    summary_res = self.llm.invoke(prompt)
+                    summary = summary_res.content.strip()
+                    
+                    result_str += f"**{i+1}. {n['title']}**\n"
+                    result_str += f"{summary}\n"
+                    result_str += f"🔗 [원문 보기]({n['url']})\n\n"
+                except Exception as e:
+                    print(f"      ⚠️ 요약 실패: {e}")
+                    result_str += f"- {n['content'][:100]}...\n  🔗 [기사]({n['url']})\n"
+        else:
+            result_str += "- 관련 주요 뉴스가 없습니다.\n"
         
         print(result_str)
         return result_str

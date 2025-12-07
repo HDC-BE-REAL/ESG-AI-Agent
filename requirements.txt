@@ -34,3 +34,7 @@ pytesseract>=0.3.10
 # paddleocr>=2.7.0
 # opencv-python>=4.10.0.84
 
+
+fastapi>=0.111.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9
