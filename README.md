@@ -131,10 +131,6 @@ pip install -r requirements.txt
 
 ---
 
-# 🤝 기여 방법
-Pull Requests 환영합니다!
-
----
 
 # 📄 License
 MIT License
