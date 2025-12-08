@@ -1,3 +1,6 @@
+venv/
 *.pdf
 .env
 vector_db/esg_all/
+data/crawling/
+

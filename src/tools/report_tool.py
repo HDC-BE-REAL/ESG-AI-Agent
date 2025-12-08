@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from langchain.tools import StructuredTool
+#from langchain.tools import StructuredTool
+from langchain_core.tools import StructuredTool
+
 from pydantic import BaseModel, Field
 
 

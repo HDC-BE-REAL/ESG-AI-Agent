@@ -1,22 +1,44 @@
 langchain>=0.2.5
 langchain-community>=0.2.5
-langchain-text-splitters>=0.2.2
-langchain-huggingface>=0.0.4
+
 langchain-openai>=0.1.7
-langgraph>=0.0.68
-chromadb>=0.5.0
-sentence-transformers>=3.0.0
 openpyxl>=3.1.2
 reportlab>=4.0.7
-pypdf>=4.2.0
-PyMuPDF
-pytesseract
-pillow
-FlagEmbedding>=1.2.10
-openparse>=0.7.0
-langdetect>=1.0.9
+
+langchain-core>=0.2.5
+langchain-text-splitters>=0.2.2
+langchain-huggingface>=0.0.4
+langgraph>=0.0.68
+
+chromadb>=0.5.0
+langchain-chroma>=0.1.1
 numpy>=1.24
+sentence-transformers>=3.0.0
+FlagEmbedding>=1.2.10
+
+openai>=1.30.0
+tavily-python>=0.3.3
+beautifulsoup4>=4.12.0
+requests>=2.31.0
+schedule>=1.2.2
+
+pypdf>=4.2.0
+PyMuPDF>=1.24.0
+openparse>=0.7.0
+llama-parse>=0.4.4
+
+python-dotenv>=1.0.1
+langdetect>=1.0.9
+
+pillow>=10.0.0
+pytesseract>=0.3.10
+
 # 선택적 의존성 (OCR 품질 개선용)
-# paddlepaddle==3.0.0
-# paddleocr==3.3.2
-# opencv-python==4.10.0.84
+# paddlepaddle>=2.6.0
+# paddleocr>=2.7.0
+# opencv-python>=4.10.0.84
+
+
+fastapi>=0.111.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9

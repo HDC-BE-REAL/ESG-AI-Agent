@@ -1,64 +1,172 @@
 from __future__ import annotations
 
-from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
-from .iso31000 import RiskEntry, identify_risks
-from .utils import to_csv
+from .iso31000 import RiskAssessmentEntry, identify_risks
+from .utils import sentence_tokenize, to_csv
 
 
-SUPPLY_CHAIN_IMPACT = {
-    "안전": "장비 임대·하도급 작업자의 안전 성숙도에 좌우",
-    "환경": "폐기물·배출 처리 협력사 관리 미흡 시 공사 중단",  # supply chain view
-    "노동": "인력 파견사 근로조건 불일치 위험",
-    "거버넌스": "입찰·조달 과정 부패 리스크",
+INCREASE_KEYWORDS = ["증가", "악화", "심화", "빈번", "확대", "상승"]
+DECREASE_KEYWORDS = ["감소", "개선", "완화", "축소", "하락"]
+HISTORIC_PATTERNS = [
+    ("최근", INCREASE_KEYWORDS, "증가"),
+    ("최근", DECREASE_KEYWORDS, "감소"),
+    ("지난", INCREASE_KEYWORDS, "증가"),
+    ("지난", DECREASE_KEYWORDS, "감소"),
+]
+
+FINANCIAL_KEYWORDS = ["벌금", "과태료", "중단", "지연", "비용", "투자", "손실", "재무", "규제"]
+FINANCIAL_LOSS_TERMS = ["손실", "매출 감소", "영업이익", "비용 증가", "정산", "배상"]
+SUPPLY_CHAIN_KEYWORDS = ["협력", "공급망", "하도급", "협력사", "vendor", "partner"]
+STAKEHOLDER_KEYWORDS = ["주민", "근로자", "투자자", "감리", "노조", "민원"]
+SYSTEMIC_KEYWORDS = ["산업", "전반", "시장", "글로벌", "법제", "정책"]
+KPI_KEYWORDS = ["kpi", "지표", "측정", "달성률", "모니터링"]
+
+ACTION_LIBRARY = {
+    "안전": "고위험 작업 허가제 및 현장 특별점검",
+    "환경": "배출/누출 모니터링 자동화 및 인허가 재점검",
+    "노동": "근로시간·임금 데이터 실시간 모니터링",
+    "거버넌스": "윤리위반 제보 처리 SLA 강화",
 }
 
-STAKEHOLDER_IMPACT = {
-    "안전": "근로자·감리·발주처 불안감 증폭",
-    "환경": "지역사회·주민 민원 증가",
-    "노동": "근로자 이탈·노동청 민원",
-    "거버넌스": "투자자·규제기관 신뢰 하락",
+FINANCIAL_HAZARD_WEIGHTS = {
+    "환경": 1.2,
+    "거버넌스": 1.1,
+    "안전": 1.0,
+    "노동": 0.95,
 }
 
-SYSTEMIC_IMPACT = {
-    "안전": "산업 전반 안전문화 저하",
-    "환경": "지역 생태계 및 기후목표 영향",
-    "노동": "건설업 전반 인력수급 불안",
-    "거버넌스": "공정경쟁 체계 훼손",
+DIMENSION_TEMPLATES = [
+    "근거 '{snippet}' → {keyword} 영향 징후",
+    "문장 '{snippet}' 에서 {keyword} 언급",
+    "해당 근거('{snippet}') 기준 {keyword} 관련 영향",
+    "'{keyword}' 키워드 기반으로 파악된 영향 (근거: {snippet})",
+]
+
+AREA_TOPIC_MAP = {
+    "안전": "Safety",
+    "환경": "Environment",
+    "노동": "Labor",
+    "거버넌스": "Governance",
 }
 
 
-def _trend_summary(risks: List[RiskEntry], context: str) -> Tuple[str, str, str]:
+def _build_action_plan(top_risks: List[RiskAssessmentEntry]) -> List[str]:
+    if not top_risks:
+        return ["1) ISO 31000 기반 정기 리스크 검토", "2) 공급망 협력사 ESG 실사 강화", "3) KPI 연동 모니터링 대시보드 구축"]
+    actions = []
+    seen = set()
+    for entry in top_risks:
+        area = entry.hazard.area
+        if area in seen:
+            continue
+        seen.add(area)
+        action = ACTION_LIBRARY.get(area)
+        if action:
+            actions.append(f"- {area}: {action}")
+    if not actions:
+        actions.append("- 공통: ISO 31000 기반 CAPA 실행")
+    return actions
+
+
+def _detect_sentence_trend(sentence: str) -> str | None:
+    lowered = sentence.lower()
+    if any(keyword in lowered for keyword in INCREASE_KEYWORDS):
+        return "증가"
+    if any(keyword in lowered for keyword in DECREASE_KEYWORDS):
+        return "감소"
+    return None
+
+
+def _trend_summary(risks: List[RiskAssessmentEntry], context: str) -> Tuple[str, str, str]:
     lowered = context.lower()
-    if any(word in lowered for word in ["증가", "악화", "빈번"]):
-        summary = "증가"
-    elif any(word in lowered for word in ["감소", "개선", "완화"]):
-        summary = "감소"
+    sentences = sentence_tokenize(context)
+    summary = "정체"
+    sentence_trends = [(_detect_sentence_trend(sentence), idx) for idx, sentence in enumerate(sentences)]
+    sentence_trends = [(label, idx) for label, idx in sentence_trends if label]
+    if sentence_trends:
+        last_three = sentence_trends[-3:]
+        vote = max(set(label for label, _ in last_three), key=lambda l: sum(1 for label, _ in last_three if label == l))
+        summary = vote
     else:
-        summary = "정체"
+        inc_count = sum(lowered.count(keyword) for keyword in INCREASE_KEYWORDS)
+        dec_count = sum(lowered.count(keyword) for keyword in DECREASE_KEYWORDS)
+        if inc_count > dec_count and inc_count:
+            summary = "증가"
+        elif dec_count > inc_count and dec_count:
+            summary = "감소"
+    for trigger, keywords, label in HISTORIC_PATTERNS:
+        if trigger in lowered and any(keyword in lowered for keyword in keywords):
+            summary = label
+            break
     drivers = []
     if "법" in lowered or "규제" in lowered:
-        drivers.append("법규 변화")
-    if any(entry.rating == "High" for entry in risks):
-        drivers.append("High risk 빈도")
-    if "협력" in lowered or "공급" in lowered:
-        drivers.append("공급망 영향")
+        drivers.append("법규/정책 변화")
+    if any(entry.rating in {"High", "Extreme"} for entry in risks):
+        drivers.append("High Risk 빈도")
+    mentions = sum(lowered.count(entry.hazard.event.lower()) for entry in risks)
+    if mentions > len(risks):
+        drivers.append("반복 언급 증가")
+    if any(keyword in lowered for keyword in SUPPLY_CHAIN_KEYWORDS):
+        drivers.append("공급망 영향 언급")
+    if any(keyword in lowered for keyword in KPI_KEYWORDS):
+        drivers.append("KPI/지표 압박")
     if not drivers:
         drivers.append("문서 기반 일반 추정")
-    evidence = risks[0].evidence if risks else "문서에서 명시된 근거 문장 필요"
-    return summary, ", ".join(drivers), evidence
+    evidence = "문서에서 명시된 근거 문장 필요"
+    if risks and risks[0].evidences:
+        evidence = risks[0].evidences[0].sentence
+    return summary, ", ".join(dict.fromkeys(drivers)), evidence
 
 
-def _materiality_level(entry: RiskEntry) -> Tuple[str, str]:
-    impact_level = "High" if entry.rating == "High" else "Medium" if entry.rating == "Medium" else "Low"
-    if entry.score >= 16:
+def _materiality_level(entry: RiskAssessmentEntry, context: str) -> Tuple[str, str]:
+    impact_level = "High" if entry.impact >= 4 else "Medium" if entry.impact >= 2.5 else "Low"
+    evidence_texts = " ".join(e.sentence for e in entry.evidences).lower()
+    keyword_hits = sum(evidence_texts.count(keyword) for keyword in FINANCIAL_KEYWORDS)
+    loss_hits = sum(evidence_texts.count(keyword) for keyword in FINANCIAL_LOSS_TERMS)
+    similarity_weight = sum(getattr(e, "similarity", 0.0) for e in entry.evidences)
+    similarity_weight = similarity_weight or 0.4
+    hazard_bias = FINANCIAL_HAZARD_WEIGHTS.get(entry.hazard.area, 1.0)
+    financial_signal = (entry.score / 5) * hazard_bias + keyword_hits * 0.4 + loss_hits * 0.7 + similarity_weight * 0.5
+    if financial_signal >= 6.5:
         financial = "High"
-    elif entry.score >= 9:
+    elif financial_signal >= 3.8:
         financial = "Medium"
     else:
         financial = "Low"
     return impact_level, financial
+
+
+def _format_topic(entry: RiskAssessmentEntry) -> str:
+    area = AREA_TOPIC_MAP.get(entry.hazard.area, entry.hazard.area)
+    event = entry.hazard.event or "Risk"
+    source = entry.hazard.source or entry.hazard.area
+    return f"{area} > {event} ({source})"
+
+
+def _dimension_template(keyword: str, snippet: str) -> str:
+    if not snippet:
+        return f"{keyword} 관련 근거 필요"
+    suffix = "..." if len(snippet) > 80 else ""
+    trimmed = snippet[:80] + suffix
+    index = abs(hash(f"{keyword}-{trimmed}")) % len(DIMENSION_TEMPLATES)
+    template = DIMENSION_TEMPLATES[index]
+    return template.format(keyword=keyword, snippet=trimmed)
+
+
+def _analyze_dimension(entry: RiskAssessmentEntry, keywords: List[str], base_message: str) -> str:
+    if not entry.evidences:
+        return base_message
+    evidence_texts = " ".join(e.sentence for e in entry.evidences).lower()
+    matched = None
+    for keyword in keywords:
+        if keyword in evidence_texts:
+            matched = keyword
+            break
+    if matched:
+        snippet = entry.evidences[0].sentence or ""
+        return _dimension_template(matched, snippet)
+    return base_message
 
 
 def analyze_materiality(context: str, question: str = "") -> str:
@@ -70,28 +178,33 @@ def analyze_materiality(context: str, question: str = "") -> str:
     summary, drivers, evidence = _trend_summary(risks, context)
     double_rows = []
     for entry in risks:
-        impact_level, financial_level = _materiality_level(entry)
-        double_rows.append((entry.area, entry.hazard, impact_level, financial_level, entry.evidence))
-    double_csv = to_csv(["영역", "리스크요인", "Impact Materiality", "Financial Materiality", "근거"], double_rows)
-    triple_rows = []
-    for entry in risks:
-        triple_rows.append(
+        impact_level, financial_level = _materiality_level(entry, context)
+        topic = _format_topic(entry)
+        evidence_sentence = entry.evidences[0].sentence if entry.evidences else "근거 부족"
+        double_rows.append(
             (
-                entry.area,
-                entry.hazard,
-                SUPPLY_CHAIN_IMPACT.get(entry.area, ""),
-                STAKEHOLDER_IMPACT.get(entry.area, ""),
-                SYSTEMIC_IMPACT.get(entry.area, ""),
+                topic,
+                f"{impact_level} (Impact {entry.impact:.1f})",
+                f"{financial_level} (Score {entry.score:.1f})",
+                entry.hazard.source or entry.hazard.area,
+                evidence_sentence,
             )
         )
-    triple_csv = to_csv(["영역", "리스크요인", "Supply Chain 영향", "Stakeholder 영향", "Systemic 영향"], triple_rows)
+    double_csv = to_csv(["Topic", "Impact Materiality", "Financial Materiality", "Risk Source", "Evidence"], double_rows)
+    triple_rows = []
+    for entry in risks:
+        topic = _format_topic(entry)
+        supply = _analyze_dimension(entry, SUPPLY_CHAIN_KEYWORDS, "협력사 관리 성숙도 필요")
+        stakeholder = _analyze_dimension(entry, STAKEHOLDER_KEYWORDS, "주요 이해관계자 민감도 고려")
+        systemic = _analyze_dimension(entry, SYSTEMIC_KEYWORDS, "산업/정책 수준 파급 잠재")
+        triple_rows.append((topic, supply, stakeholder, systemic))
+    triple_csv = to_csv(["Topic", "Value Chain Impact", "Stakeholder Impact", "Systemic Impact"], triple_rows)
     top_risks = sorted(risks, key=lambda r: r.score, reverse=True)[:5]
-    top_lines = [f"- {entry.area}/{entry.hazard}: {entry.rating} (Score {entry.score})" for entry in top_risks]
-    action_lines = [
-        "1) ISO 31000 기반 정기 리스크 검토",
-        "2) 공급망 협력사 ESG 실사 강화",
-        "3) KPI 연동 모니터링 대시보드 구축",
+    top_lines = [
+        f"- {entry.hazard.area}/{entry.hazard.event}: {entry.rating} (Score {entry.score:.1f}, Acceptance {entry.acceptance})"
+        for entry in top_risks
     ]
+    action_lines = _build_action_plan(top_risks)
     output_sections = [
         f"Trend Summary: {summary}",
         f"Trend Drivers: {drivers}",

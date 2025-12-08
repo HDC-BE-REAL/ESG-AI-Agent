@@ -8,6 +8,10 @@ from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_openai import ChatOpenAI
 
+#from langchain.tools import StructuredTool
+from langchain_core.tools import StructuredTool
+
+from pydantic import BaseModel, Field
 
 # -----------------------------
 # 임베딩 및 벡터 DB

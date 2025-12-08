@@ -1,5 +1,8 @@
 from .policy_tool import policy_guideline_tool
-from .regulation_tool import regulation_monitor_tool
+
+#from .regulation_tool import regulation_monitor_tool
+from .regulation_tool import fetch_regulation_updates as regulation_monitor_tool
+
 from .report_tool import report_draft_tool
 from .risk_tool import risk_assessment_tool
 
