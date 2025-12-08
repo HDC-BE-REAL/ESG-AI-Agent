@@ -1,43 +1,156 @@
-# ESG AI Agent
 
-LangChain 기반 4가지 ESG 목적 Tool을 LangGraph 에이전트로 묶은 프로토타입입니다.
+# 🌍 ESG Insight Agent
+AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 
-## 폴더 구조
+<p align="center">
+  <img src="./images/banner.png" width="80%" />
+</p>
 
-```
-ESG_AIagent/
-├─ data/
-├─ retriever/
-├─ vector_db/
-├─ src/
-│  ├─ app.py                  # LangGraph 워크플로 진입점
-│  ├─ tools/                  # 목적별 LangChain Tool
-│  │  ├─ policy_tool.py - 정민
-│  │  ├─ risk_tool.py - 현이
-│  │  ├─ report_tool.py - 상훈  
-│  │  └─ regulation_tool.py - 희선
-│  └─ workflows/
-│     ├─ graph.py             # detect_mode → execute_tool → generate_final_answer → END
-│     └─ schema.py
-└─ requirements.txt
-```
+---
 
-## LangGraph 워크플로
-1. `detect_mode`: 사용자 질문의 키워드를 분석하여 4개 Tool 중 하나를 선택
-2. `execute_tool`: 선택된 Tool에 원문 질의를 그대로 전달하고 결과를 획득
-3. `generate_final_answer`: 선택 정보와 Tool 응답을 묶어 최종 답변 생성
+## 📌 프로젝트 개요
+**ESG Insight Agent**는 건설사를 위한 ESG 업무 자동화 AI 시스템으로,  
+정책 분석 → 리스크 진단 → 보고서 생성 → 규제 모니터링을 통합적으로 수행합니다.
 
-```
-User Query → detect_mode → execute_tool → generate_final_answer → END
-```
+---
 
-## 실행 방법
-```bash
+## 🧭 프로젝트 기간
+2025-12-02 ~ 2025-12-10
+
+---
+
+## 👥 참여 인원
+- 팀원: 박희선, 석상훈, 윤현이, 황정민
+
+---
+
+## 📚 데이터 출처
+- K-ESG 공급망 대응 가이드라인
+- SASB E&C Standards
+- GRI Standards
+- 국내 법령 자료
+- 주요 건설사 ESG 보고서
+
+---
+
+# 🎯 목표
+- ESG 문서 자동 요약 및 비교
+- 프로젝트 기반 ESG 리스크 평가
+- ESG 보고서 자동 생성(PDF/DOCX)
+- 규제 변경 감지 자동화
+- RAG 기반 문서 검색 및 분석
+
+---
+
+# 🧩 주요 기능
+
+### ✔ 정책 분석 모듈
+- K-ESG / SASB / GRI 자동 비교
+- 정책 간 차이 분석 및 가이드 제공
+
+### ✔ 리스크 진단 모듈
+- 프로젝트 기반 E/S/G 리스크 자동 평가
+- 체크리스트 생성 기능
+
+### ✔ 보고서 자동 생성
+- K-ESG 61개 항목 기반
+- PDF/DOCX 자동 출력
+
+### ✔ 규제 모니터링
+- 기관별 규제 변경 감지
+- 주간 리포트 생성
+
+---
+
+# 🏗️ 시스템 구조
+
+<p align="center">
+  <img src="./images/system_architecture.png" width="80%" />
+  <img src="./images/system_architecture1.png" width="80%" />
+
+---
+
+# 🔍 RAG Pipeline
+
+<p align="center">
+  <img src="./images/rag_pipeline.png" width="80%" />
+  <img src="./images/rag_pipeline1.png" width="80%" />
+
+
+---
+
+# 🗂 WBS Diagram
+
+<p align="center">
+  <img src="./images/wbs_diagram.png" width="80%" />
+</p>
+
+---
+
+# 📅 일정 계획 (Gantt Chart)
+
+| 작업 항목 | 시작 | 종료 | 기간(일) |
+|----------|-------|-------|----------|
+| 프로젝트 정의 및 계획 수립 | 2025-12-02 | 2025-12-02 | 1 |
+| 문서 수집 | 2025-12-02 | 2025-12-03 | 2 |
+| 데이터 전처리 및 임베딩 | 2025-12-03 | 2025-12-04 | 2 |
+| RAG 아키텍처 구성 | 2025-12-04 | 2025-12-05 | 2 |
+| 핵심 모듈 개발 | 2025-12-05 | 2025-12-07 | 3 |
+| UI 및 모니터링 기능 개발 | 2025-12-07 | 2025-12-08 | 2 |
+| 통합 테스트 | 2025-12-08 | 2025-12-09 | 2 |
+| 발표 | 2025-12-10 | 2025-12-10 | 1 |
+
+---
+
+# 🧪 기술 스택
+
+| 영역 | 기술 |
+|------|------|
+| Backend | FastAPI, Python |
+| AI Engine | GPT-4-mini, LangChain |
+| Embedding | bge-m3 |
+| DB | ChromaDB |
+| Parsing | PyPDF, PyMuPDF, Tesseract |
+| Frontend | React |
+
+---
+
+# 📁 문서
+더 자세한 문서는 `docs/` 폴더에서 확인하세요.
+
+---
+
+# ▶ 실행 방법
+
+### 1) 라이브러리 설치
 pip install -r requirements.txt
-python -m src.app "ESG 보고서 자동 작성해줘"
-```
 
-## 확장 아이디어
-- 실제 문서/규제 데이터 연결을 위해 Retriever 및 Vector DB 연동
-- detect_mode에 LLM 분류기 또는 RAG 스코어 활용
-- Tool 내부 로직을 외부 API 또는 사내 지식그래프와 연동
+
+### 2) Backend 실행
+uvicorn backend.main:app --reload
+
+
+### 3) Frontend 실행
+react run frontend/app.py
+
+
+---
+
+# 🤝 기여 방법
+Pull Requests 환영합니다!
+
+---
+
+# 📄 License
+MIT License
+"""
+
+
+def generate_readme():
+    with open("README.md", "w", encoding="utf-8") as f:
+        f.write(README_CONTENT)
+    print("✅ README.md 파일 생성 완료!")
+
+
+if __name__ == "__main__":
+    generate_readme()
