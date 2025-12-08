@@ -12,10 +12,10 @@ ESG_AIagent/
 ├─ src/
 │  ├─ app.py                  # LangGraph 워크플로 진입점
 │  ├─ tools/                  # 목적별 LangChain Tool
-│  │  ├─ policy_tool.py
-│  │  ├─ risk_tool.py
-│  │  ├─ report_tool.py
-│  │  └─ regulation_tool.py
+│  │  ├─ policy_tool.py - 정민
+│  │  ├─ risk_tool.py - 현이
+│  │  ├─ report_tool.py - 상훈  
+│  │  └─ regulation_tool.py - 희선
 │  └─ workflows/
 │     ├─ graph.py             # detect_mode → execute_tool → generate_final_answer → END
 │     └─ schema.py
