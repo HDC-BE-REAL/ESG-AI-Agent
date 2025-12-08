@@ -35,7 +35,7 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 DOWNLOAD_DIR = os.path.join(DATA_DIR, "risk_data")
 HISTORY_DIR = os.path.join(DATA_DIR, "crawling")
 HISTORY_FILE = os.path.join(HISTORY_DIR, "risk_history.json")
-VECTOR_DB_DIR = os.path.join(DATA_DIR, "chroma_db")
+VECTOR_DB_DIR = os.path.join(BASE_DIR, "vector_db", "all_esg")
 
 # --------------------------------------------------------------------------
 # [설정] 리스크 진단 자료 타겟 목록 (구글 우회 검색 키워드 추가)

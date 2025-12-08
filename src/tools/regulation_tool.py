@@ -37,7 +37,8 @@ DATA_DIR = os.path.join(BASE_DIR, "data")
 DOWNLOAD_DIR = os.path.join(DATA_DIR, "domestic")
 HISTORY_DIR = os.path.join(DATA_DIR, "crawling")
 HISTORY_FILE = os.path.join(HISTORY_DIR, "crawl_history.json")
-VECTOR_DB_DIR = os.path.join(DATA_DIR, "chroma_db")  # 벡터DB 저장 경로
+LAST_CRAWL_FILE = os.path.join(HISTORY_DIR, "last_crawl.json")
+VECTOR_DB_DIR = os.path.join(BASE_DIR, "vector_db", "all_esg")  # 벡터DB 저장 경로
 
 # [변경] 모니터링 타겟 목록
 # law.go.kr은 별도 로직으로 처리하기 위해 type을 구분하거나 URL로 식별
@@ -95,32 +96,18 @@ class RegulationMonitor:
         if cls._instance is None:
             cls._instance = super(RegulationMonitor, cls).__new__(cls)
             cls._instance._initialize()
+            cls._instance.start_scheduler() # Start background scheduler
         return cls._instance
 
     def _initialize(self):
         print("⚙️ [RegulationMonitor] 초기화 중...")
         
-        try:
-            self.embeddings = HuggingFaceEmbeddings(
-                model_name="BAAI/bge-m3",
-                model_kwargs={'device': 'cpu'},
-                encode_kwargs={'normalize_embeddings': True}
-            )
-        except Exception as e:
-            print(f"⚠️ 임베딩 모델 로드 실패: {e}")
-            self.embeddings = None
-
+        # Embeddings & VectorDB는 필요할 때 로드 (Lazy Loading)
+        self.embeddings = None
+        self.vector_db = None
+        
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-
-        if self.embeddings:
-            self.vector_db = Chroma(
-                collection_name="esg_regulations",
-                embedding_function=self.embeddings,
-                persist_directory=VECTOR_DB_DIR
-            )
-        else:
-            self.vector_db = None
-
+        
         self.tavily = TavilySearchResults(
             max_results=5,
             include_domains=TRUSTED_NEWS_DOMAINS
@@ -131,6 +118,29 @@ class RegulationMonitor:
         os.makedirs(VECTOR_DB_DIR, exist_ok=True)
         
         self.history = self._load_history()
+
+    def _ensure_vector_db(self):
+        """Vector DB 및 Embeddings 지연 초기화"""
+        if self.vector_db is not None:
+            return
+
+        print("🔌 [System] Embeddings 모델 및 Vector DB 초기화 중... (다소 시간이 소요될 수 있습니다)")
+        try:
+            self.embeddings = HuggingFaceEmbeddings(
+                model_name="BAAI/bge-m3",
+                model_kwargs={'device': 'cpu'},
+                encode_kwargs={'normalize_embeddings': True}
+            )
+            self.vector_db = Chroma(
+                collection_name="esg_regulations",
+                embedding_function=self.embeddings,
+                persist_directory=VECTOR_DB_DIR
+            )
+            print("✅ [System] Vector DB 초기화 완료")
+        except Exception as e:
+            print(f"⚠️ 임베딩 모델 로드 실패: {e}")
+            self.embeddings = None
+            self.vector_db = None
 
     def _load_history(self) -> Dict:
         if os.path.exists(HISTORY_FILE):
@@ -151,11 +161,13 @@ class RegulationMonitor:
     def _is_processed(self, url: str) -> bool:
         return url in self.history
 
-    def _mark_as_processed(self, url: str, title: str, files: List[str]):
+    def _mark_as_processed(self, url: str, title: str, files: List[str], summary: str = None, origin_url: str = None):
         self.history[url] = {
             "title": title,
             "processed_at": datetime.now().isoformat(),
-            "files": files
+            "files": files,
+            "summary": summary,
+            "origin_url": origin_url
         }
         self._save_history()
 
@@ -178,16 +190,17 @@ class RegulationMonitor:
             print(f"⚠️ 파일 읽기 실패 ({os.path.basename(file_path)}): {e}")
         return text_preview
 
-    def _analyze_and_store(self, file_path: str, title: str, source: str) -> bool:
+    def _analyze_and_store(self, file_path: str, title: str, source: str) -> tuple[bool, Optional[str]]:
+        self._ensure_vector_db()
         if not self.vector_db:
-            return False
+            return False, None
 
         filename = os.path.basename(file_path)
         print(f"   🧠 [AI 분석] '{filename}' 중요도 평가 중...")
 
         content_preview = self._extract_text_preview(file_path)
         if not content_preview:
-            return False
+            return False, None
 
         prompt = f"""
         당신은 ESG 및 산업 안전, 환경 규제 전문가입니다. 
@@ -207,9 +220,10 @@ class RegulationMonitor:
         {{
             "is_important": true/false,
             "score": (1~10),
-            "reason": "한 줄 요약",
+            "summary": "1. (첫 번째 핵심 내용)\\n2. (두 번째 핵심 내용)\\n3. (세 번째 핵심 내용)",
             "category": "법령개정/가이드라인/단순알림"
         }}
+        * 주의: 'summary' 필드는 반드시 한국어로 작성하고, 1, 2, 3 번호를 매겨서 3줄로 작성해주세요.
         """
         
         try:
@@ -220,10 +234,13 @@ class RegulationMonitor:
             is_important = analysis.get("is_important", False)
             score = analysis.get("score", 0)
             
-            print(f"      👉 결과: 중요도 {score}점 ({analysis.get('reason')})")
+            print(f"      👉 결과: 중요도 {score}점")
 
             if is_important and score >= 6:
                 print(f"      💾 [Vector DB] 중요 문서로 식별되어 DB에 저장합니다.")
+                
+                # Use 'summary' from analysis, fallback to 'reason' if old format (though prompt changed)
+                summary_text = analysis.get("summary", analysis.get("reason", "요약 없음"))
                 
                 full_text = ""
                 # PDF 처리
@@ -251,14 +268,14 @@ class RegulationMonitor:
                     )
                     self.vector_db.add_documents(chunks)
                     print(f"      ✅ DB 저장 완료 ({len(chunks)} chunks)")
-                return True
+                return True, summary_text
             else:
                 print(f"      🗑️ [Discard] 중요도가 낮아 DB에 저장하지 않습니다.")
-                return False
+                return False, None
 
         except Exception as e:
             print(f"      ❌ AI 분석 중 오류: {e}")
-            return False
+            return False, None
 
     def _get_chrome_driver(self):
         chrome_options = Options()
@@ -367,10 +384,10 @@ class RegulationMonitor:
                         downloaded_files.append(file_path)
                         
                         # AI 분석 및 저장
-                        self._analyze_and_store(file_path, title, source_name)
-
-                    self._mark_as_processed(unique_key, title, downloaded_files)
-                    results.append({"source": source_name, "title": title, "files": downloaded_files})
+                        _, summary = self._analyze_and_store(file_path, title, source_name)
+                        
+                    self._mark_as_processed(unique_key, title, downloaded_files, summary, origin_url=url)
+                    results.append({"source": source_name, "title": title, "files": downloaded_files, "origin_url": url})
                     
                     # 목록으로 돌아가기 (뒤로가기 혹은 URL 재접속)
                     driver.get(url)
@@ -441,6 +458,7 @@ class RegulationMonitor:
                         time.sleep(2)
                         
                         downloaded_files = []
+                        summary = None
                         potential_links = driver.find_elements(By.TAG_NAME, "a")
                         file_links = []
                         for link in potential_links:
@@ -464,11 +482,11 @@ class RegulationMonitor:
                                         full_path = os.path.join(DOWNLOAD_DIR, new_file)
                                         downloaded_files.append(full_path)
                                         print(f"      ✅ 다운로드 완료: {new_file}")
-                                        self._analyze_and_store(full_path, title, source_name)
+                                        _, summary = self._analyze_and_store(full_path, title, source_name)
                                         break
                         
-                        self._mark_as_processed(unique_key, title, downloaded_files)
-                        results.append({"source": source_name, "title": title, "files": downloaded_files})
+                        self._mark_as_processed(unique_key, title, downloaded_files, summary, origin_url=target_url)
+                        results.append({"source": source_name, "title": title, "files": downloaded_files, "origin_url": target_url})
                         
                         driver.back()
                         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table tbody tr")))
@@ -516,6 +534,7 @@ class RegulationMonitor:
                     time.sleep(2)
                     
                     downloaded_files = []
+                    summary = None
                     file_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='downloadAttach']")
                     if not file_links:
                         file_links = driver.find_elements(By.CSS_SELECTOR, "a[href*='FileDown']")
@@ -535,11 +554,11 @@ class RegulationMonitor:
                                         full_path = os.path.join(DOWNLOAD_DIR, downloaded_file)
                                         downloaded_files.append(full_path)
                                         print(f"      ✅ 다운로드 완료: {downloaded_file}")
-                                        self._analyze_and_store(full_path, title, "GMI")
+                                        _, summary = self._analyze_and_store(full_path, title, "GMI")
                                         break
                     
-                    self._mark_as_processed(unique_key, title, downloaded_files)
-                    results.append({"source": "GMI", "title": title, "files": downloaded_files})
+                    self._mark_as_processed(unique_key, title, downloaded_files, summary, origin_url=target_url)
+                    results.append({"source": "GMI", "title": title, "files": downloaded_files, "origin_url": target_url})
                     driver.back()
                     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table tbody tr")))
                     time.sleep(1)
@@ -590,6 +609,7 @@ class RegulationMonitor:
                     time.sleep(2)
                     
                     downloaded_files = []
+                    summary = None
                     file_links = driver.find_elements(By.CSS_SELECTOR, ".file-list a")
                     
                     for f_link in file_links:
@@ -607,11 +627,11 @@ class RegulationMonitor:
                                         full_path = os.path.join(DOWNLOAD_DIR, new_file)
                                         downloaded_files.append(full_path)
                                         if new_file.lower().endswith('.pdf'):
-                                            self._analyze_and_store(full_path, title, "FSC")
+                                            _, summary = self._analyze_and_store(full_path, title, "FSC")
                                         break
                     
-                    self._mark_as_processed(link, title, downloaded_files)
-                    results.append({"source": "FSC", "title": title, "files": downloaded_files})
+                    self._mark_as_processed(link, title, downloaded_files, summary, origin_url=link)
+                    results.append({"source": "FSC", "title": title, "files": downloaded_files, "origin_url": link})
                     
                     driver.get(target_url)
                     wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".board-list .subject a")))
@@ -641,31 +661,182 @@ class RegulationMonitor:
             driver.quit()
         return results
 
-    def _deduplicate_news(self, news_list: List[Dict], threshold=0.85) -> List[Dict]:
-        if not news_list or not self.embeddings: return news_list
-        texts = [item['content'] for item in news_list]
-        vectors = self.embeddings.embed_documents(texts)
-        matrix = np.array(vectors)
-        processed = [False] * len(news_list)
-        unique_news = []
-        for i in range(len(news_list)):
-            if processed[i]: continue
-            current_cluster = [news_list[i]]
-            processed[i] = True
-            vec_i = matrix[i].reshape(1, -1)
-            if i + 1 < len(news_list):
-                remaining_vectors = matrix[i+1:]
-                similarities = cosine_similarity(vec_i, remaining_vectors)[0]
-                for idx, score in enumerate(similarities):
-                    real_idx = i + 1 + idx
-                    if not processed[real_idx] and score >= threshold:
-                        current_cluster.append(news_list[real_idx])
-                        processed[real_idx] = True
-            representative = max(current_cluster, key=lambda x: len(x['content']))
-            representative['related_count'] = len(current_cluster) - 1
-            unique_news.append(representative)
-        return unique_news
+    def _get_last_crawl_time(self) -> float:
+        try:
+            if os.path.exists(LAST_CRAWL_FILE):
+                with open(LAST_CRAWL_FILE, 'r') as f:
+                    data = json.load(f)
+                    return data.get("timestamp", 0.0)
+        except:
+            pass
+        return 0.0
 
+    def _set_last_crawl_time(self):
+        try:
+            with open(LAST_CRAWL_FILE, 'w') as f:
+                json.dump({"timestamp": time.time(), "date": datetime.now().isoformat()}, f)
+        except Exception as e:
+            print(f"⚠️ 마지막 크롤링 시간 저장 실패: {e}")
+
+    def crawl_updates(self):
+        """백그라운드에서 실행되는 크롤링 작업 (10일 주기)"""
+        last_crawl = self._get_last_crawl_time()
+        elapsed_days = (time.time() - last_crawl) / (3600 * 24)
+        
+        if elapsed_days < 10:
+            print(f"⏳ [Scheduler] 크롤링 스킵 (마지막 실행: {elapsed_days:.1f}일 전)")
+            return
+
+        print(f"\n🔄 [Scheduler] 정기 크롤링 시작 (10일 주기) - {datetime.now().isoformat()}")
+        
+        # 1. 보고서 수집
+        self._fetch_gmi_reports_selenium()
+        self._fetch_fsc_reports_selenium()
+        
+        # 2. 법령 업데이트 수집
+        self._fetch_legal_updates()
+        
+        self._set_last_crawl_time()
+        print("✅ [Scheduler] 정기 크롤링 완료")
+
+    def generate_report(self, query: str = "ESG 규제 동향") -> str:
+        """저장된 데이터를 바탕으로 즉시 리포트 생성 (크롤링 수행 X)"""
+        print(f"📊 [Report] 최신 데이터 기반 리포트 생성 요청: {query}")
+        
+        # 0. 히스토리 최신화 (다른 프로세스에서 업데이트된 내용 반영)
+        self.history = self._load_history()
+
+        # 1. 최근 10일 이내 수집된 데이터 필터링
+        recent_reports = []
+        recent_files_count = 0
+        cutoff_date = datetime.now().timestamp() - (10 * 24 * 3600)
+        
+        sorted_history = sorted(self.history.items(), key=lambda x: x[1]['processed_at'], reverse=True)
+        
+        for url, info in sorted_history:
+            processed_at = datetime.fromisoformat(info['processed_at']).timestamp()
+            if processed_at >= cutoff_date:
+                # 파일이 없으면 결과에서 제외
+                if not info.get('files'):
+                    continue
+                
+                recent_reports.append({
+                    "source": "History", 
+                    "title": info['title'], 
+                    "files": info['files'],
+                    "summary": info.get('summary'),
+                    "key": url,
+                    "origin_url": info.get('origin_url')
+                })
+                recent_files_count += len(info['files'])
+            if len(recent_reports) >= 10: break # 최대 10개만 표시
+
+        is_fallback = False
+        # [Fallback] 최근 데이터가 없으면 과거 이력에서 최신순으로 가져옴
+        if not recent_reports:
+            print("   ⚠️ 최근 데이터 없음. 이력에서 최신 데이터 검색 중...")
+            for url, info in sorted_history:
+                if not info.get('files'): continue
+                
+                recent_reports.append({
+                    "source": "History (Fallback)", 
+                    "title": info['title'], 
+                    "files": info['files'],
+                    "summary": info.get('summary'),
+                    "key": url,
+                    "origin_url": info.get('origin_url')
+                })
+                # Fallback은 1개만 확실하게 보여줘도 됨 (요청사항: "시점에서 가장 최신문서")
+                if len(recent_reports) >= 1: break
+            
+            if recent_reports:
+                is_fallback = True
+                result_str = f"## 🌍 ESG 규제 & 법령 모니터링 리포트 (Archive Data)\n"
+                result_str += f"> ⚠️ 최근 10일 내 신규 문서는 없지만, 가장 최근에 수집된 중요 문서를 표시합니다.\n\n"
+            else:
+                result_str = f"## 🌍 ESG 규제 & 법령 모니터링 리포트\n"
+        else:
+            result_str = f"## 🌍 ESG 규제 & 법령 모니터링 리포트 (Latest Data)\n"
+            result_str += f"📅 판단 기준: 최근 10일 이내 수집된 데이터\n\n"
+
+        # 2. 요약 없는 문서 자동 요약 (사용자 요청 대응)
+        for r in recent_reports:
+            if not r.get('summary') and r['files']:
+                target_file = r['files'][0]
+                print(f"   🤖 [Auto-Sum] '{r['title']}' 요약 생성 시도...")
+                try:
+                    # _analyze_and_store 로직을 일부 재사용하여 요약만 생성
+                    preview = self._extract_text_preview(target_file, max_pages=5)
+                    if preview:
+                        prompt = f"""
+                        다음 문서의 내용을 한국어로 3줄 요약해주세요.
+                        문서 제목: {r['title']}
+                        내용 미리보기:
+                        {preview[:3000]}
+                        
+                        [형식]
+                        1. (핵심 내용 1)
+                        2. (핵심 내용 2)
+                        3. (핵심 내용 3)
+                        """
+                        res = self.llm.invoke(prompt)
+                        summary_text = res.content.strip()
+                        r['summary'] = summary_text
+                        
+                        # 히스토리 업데이트
+                        if r.get('key'):
+                            self.history[r['key']]['summary'] = summary_text
+                            self._save_history()
+                        print(f"      ✅ 요약 생성 완료")
+                except Exception as e:
+                    print(f"      ⚠️ 요약 생성 실패: {e}")
+
+        if recent_reports:
+            result_str += "### 🆕 관련 보고서 및 문서\n"
+            for r in recent_reports:
+                files_msg = ""
+                # 원본 URL이 있으면 우선 표시
+                if r.get('origin_url'):
+                    files_msg = f"[원문 보기]({r['origin_url']})"
+                elif r['files']:
+                    links = []
+                    for f in r['files']:
+                        fname = os.path.basename(f)
+                        url = f"http://localhost:8000/static/domestic/{fname}"
+                        links.append(f"[다운로드]({url})")
+                    files_msg = ", ".join(links)
+                else:
+                    files_msg = "파일 없음"
+                
+                result_str += f"- {r['title']}\n"
+                result_str += f"  - 🔗 링크: {files_msg}\n"
+                if r.get('summary'):
+                    result_str += f"  - 📝 요약:\n{r['summary']}\n"
+                else:
+                    result_str += f"  - 📝 요약: (요약 없음)\n"
+        else:
+            result_str += "### 🆕 최신 보고서 및 법령 개정안\n"
+            result_str += "- 수집된 문서가 없습니다.\n"
+            
+        result_str += "\n### ℹ️ 참고\n"
+        result_str += "- 본 리포트는 자동 수집된 데이터를 기반으로 생성됩니다.\n"
+        
+        return result_str
+
+    def start_scheduler(self):
+        import threading
+        def run_schedule():
+            # 시작 시 한 번 체크
+            self.crawl_updates()
+            while True:
+                time.sleep(3600) # 1시간마다 확인
+                self.crawl_updates()
+        
+        t = threading.Thread(target=run_schedule, daemon=True)
+        t.start()
+        print("⏰ [System] 백그라운드 크롤링 스케줄러 시작 완료")
+
+    # 기존 함수 유지 (호환성)
     def monitor_all(self, query: str = "ESG 규제 동향") -> str:
         print("\n" + "="*50)
         print(f"🔄 [모니터링 실행] {time.strftime('%Y-%m-%d %H:%M:%S')}")
@@ -748,7 +919,7 @@ def fetch_regulation_updates(query: str = "ESG regulatory updates") -> str:
     Monitors ESG updates using Selenium and History Tracking to detect NEW reports only.
     Use GPT to filter important documents and store them in Vector DB.
     """
-    return _monitor_instance.monitor_all(query)
+    return _monitor_instance.generate_report(query)
 
 def run_continuously(interval_days: int = 1):
     print(f"\n⏰ 스케줄러 시작: {interval_days}일마다 자동 실행됩니다.")

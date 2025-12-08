@@ -3,6 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.api import router as api_router
 
 app = FastAPI(title="ESG AI Agent API")
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Define DATA_DIR
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, "data")
+
+app.mount("/static", StaticFiles(directory=DATA_DIR), name="static")
 
 # CORS Setup
 # allow_origins=["*"] cannot be used with allow_credentials=True

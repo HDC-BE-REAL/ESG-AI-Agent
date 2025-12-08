@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 export default function ChatInterface() {
     const [messages, setMessages] = useState([
@@ -56,11 +57,19 @@ export default function ChatInterface() {
                     >
                         <div
                             className={`max-w-[85%] rounded-lg p-3 ${msg.role === 'user'
-                                    ? 'bg-blue-600 text-white'
-                                    : 'bg-gray-100 text-gray-800'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-800 prose prose-sm max-w-none'
                                 }`}
                         >
-                            {msg.content}
+                            <ReactMarkdown
+                                components={{
+                                    a: ({ node, ...props }) => (
+                                        <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" />
+                                    )
+                                }}
+                            >
+                                {msg.content}
+                            </ReactMarkdown>
                         </div>
                     </div>
                 ))}

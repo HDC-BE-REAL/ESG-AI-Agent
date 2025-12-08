@@ -34,7 +34,9 @@ class AgentManager:
         # Note: monitor_all is synchronous, might block if not careful, 
         # but for now we run it directly. In production, use a thread pool or background task.
         try:
-            report = regulation_monitor.monitor_all(query)
+            # report = regulation_monitor.monitor_all(query)
+            # Use generate_report for instant response (browsing happens in background)
+            report = regulation_monitor.generate_report(query)
             self.update_context("regulation_updates", report)
             return report
         except Exception as e:

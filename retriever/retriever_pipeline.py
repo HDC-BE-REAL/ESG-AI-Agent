@@ -17,7 +17,7 @@ from pydantic import ConfigDict, Field
 
 from pydantic import Field, ConfigDict
 
-DEFAULT_VECTOR_DIR = Path("vector_db/esg_all")
+DEFAULT_VECTOR_DIR = Path("vector_db/all_esg")
 DEFAULT_COLLECTION = "esg_all"
 DEFAULT_EMBEDDING_MODEL = "BAAI/bge-m3"
 
