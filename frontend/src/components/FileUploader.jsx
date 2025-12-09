@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import fileIcon from '../assets/file_icon.png'
 
 export default function FileUploader({ onUpload, files }) {
     const [isDragging, setIsDragging] = useState(false)
@@ -48,10 +49,12 @@ export default function FileUploader({ onUpload, files }) {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full text-slate-900">
             <div
-                className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'
-                    }`}
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-all cursor-pointer ${isDragging
+                    ? 'bg-purple-200/30 border-purple-400 shadow-glow'
+                    : 'bg-white/70 border-white/80 hover:border-moonlightPurple/40'}
+                    `}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -64,18 +67,20 @@ export default function FileUploader({ onUpload, files }) {
                     multiple
                     onChange={handleFileSelect}
                 />
-                <p className="text-gray-600">
-                    Drag & drop files here, or click to select
-                </p>
+                <div className="flex items-center justify-center gap-2">
+                    <img src={fileIcon} alt="Files" className="w-6 h-6 object-contain" />
+                    <p className="text-slate-900 text-lg font-semibold">Drag & Drop your files here</p>
+                </div>
+                <p className="text-slate-600 text-sm mt-2">or click to upload</p>
             </div>
 
             <div className="mt-6 flex-1 overflow-y-auto">
-                <h3 className="font-semibold text-gray-700 mb-2">Uploaded Files</h3>
+                <h3 className="font-semibold text-slate-900 mb-2">Uploaded Files</h3>
                 <ul className="space-y-2">
                     {files.map((file, index) => (
-                        <li key={index} className="bg-gray-50 p-2 rounded text-sm flex justify-between items-center">
+                        <li key={index} className="bg-white/80 p-2 rounded text-sm flex justify-between items-center shadow-sm">
                             <span className="truncate">{file.name}</span>
-                            <span className="text-gray-400 text-xs">{(file.size / 1024).toFixed(1)} KB</span>
+                            <span className="text-slate-500 text-xs">{(file.size / 1024).toFixed(1)} KB</span>
                         </li>
                     ))}
                 </ul>

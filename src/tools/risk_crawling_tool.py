@@ -16,7 +16,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
+from selenium.common.exceptions import StaleElementReferenceException, TimeoutException, ElementClickInterceptedException
 from webdriver_manager.chrome import ChromeDriverManager
 
 # LangChain & AI
@@ -38,25 +38,32 @@ HISTORY_FILE = os.path.join(HISTORY_DIR, "risk_history.json")
 VECTOR_DB_DIR = os.path.join(BASE_DIR, "vector_db", "esg_all")
 
 # --------------------------------------------------------------------------
-# [설정] 리스크 진단 자료 타겟 목록 (구글 우회 검색 키워드 추가)
+# [설정] 리스크 진단 자료 타겟 목록
 # --------------------------------------------------------------------------
 RISK_TARGETS = [
-    # 1. [Safety] 안전보건공단 (KOSHA는 내부 아카이브가 잘 되어있어 유지)
+    # 1. [ESG Hub] ESG 금융 추진단 (E/S/G 태그 수집)
     {
-        "name": "KOSHA_C_Guide",
+        "name": "ESG_Finance_Hub",
+        "url": "https://www.esgfinancehub.or.kr/portal/report/imgList/vw/20211222092216000024",
+        "type": "ESG_HUB", 
+        "category": "ESG_General"
+    },
+    # 2. [Safety] 안전보건공단 자료마당
+    {
+        "name": "KOSHA_Construction_Guide",
         "url": "https://portal.kosha.or.kr/archive/resources/tech-support/search/const?page=1&rowsPerPage=10",
         "type": "KOSHA_ARCHIVE", 
         "category": "Safety"
     },
-    # 2. [Safety] 고용노동부 - 위험성평가 (구글 우회)
+    # 3. [Safety] 고용노동부 - 위험성평가 (Google 우회)
     {
         "name": "MOEL_Risk_Standard",
-        "url": "https://www.moel.go.kr/info/publict/publictDataList.do", # 실패 시 구글로 전환
+        "url": "https://www.moel.go.kr/info/publict/publictDataList.do", 
         "google_query": 'site:moel.go.kr filetype:pdf "위험성평가" "표준모델"',
         "type": "GOV_BOARD",
         "category": "Safety"
     },
-    # 3. [Labor] 고용노동부 - 자율점검표 (구글 우회)
+    # 4. [Labor] 고용노동부 - 자율점검표 (Google 우회)
     {
         "name": "MOEL_Checklist",
         "url": "https://www.moel.go.kr/news/notice/noticeList.do",
@@ -64,7 +71,7 @@ RISK_TARGETS = [
         "type": "GOV_BOARD",
         "category": "Labor"
     },
-    # 4. [Env] 환경부 - 비산먼지 (구글 우회)
+    # 5. [Env] 환경부 - 비산먼지 (Google 우회)
     {
         "name": "ME_Dust_Manual",
         "url": "https://www.me.go.kr/home/web/board/list.do?menuId=10392&boardMasterId=39",
@@ -72,7 +79,7 @@ RISK_TARGETS = [
         "type": "GOV_BOARD",
         "category": "Environment"
     },
-    # 5. [Gov] 공정거래위원회 - 표준계약서 (구글 우회)
+    # 6. [Gov] 공정거래위원회 - 표준계약서 (Google 우회)
     {
         "name": "FTC_Construction_Contract",
         "url": "https://www.ftc.go.kr/www/cop/bbs/selectBoardList.do?key=201&bbsId=BBSMSTR_000000002320",
@@ -83,11 +90,6 @@ RISK_TARGETS = [
 ]
 
 class RiskCrawlingTool:
-    """
-    [리스크 진단 자료 수집 에이전트]
-    - 안전(KOSHA/MOEL), 환경(ME), 공정(FTC) 분야의 실무 가이드/체크리스트 수집
-    - 사이트 접속 차단 시 'Google Site Search'로 우회하여 PDF 직접 수집
-    """
     _instance = None
 
     def __new__(cls):
@@ -111,6 +113,7 @@ class RiskCrawlingTool:
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
         if self.embeddings:
+            os.makedirs(VECTOR_DB_DIR, exist_ok=True)
             self.vector_db = Chroma(
                 collection_name="esg_risk_guides",
                 embedding_function=self.embeddings,
@@ -150,17 +153,14 @@ class RiskCrawlingTool:
 
     def _get_chrome_driver(self):
         chrome_options = Options()
-        # [중요] 봇 탐지 회피 옵션 강화
         chrome_options.add_argument("--headless=new")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled") # 자동화 제어 감지 비활성화
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"]) # 자동화 표시 제거
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
-        
-        # 일반 사용자처럼 보이게 하는 User-Agent
         chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
         
         prefs = {
@@ -169,16 +169,15 @@ class RiskCrawlingTool:
             "download.directory_upgrade": True,
             "safebrowsing.enabled": True,
             "plugins.always_open_pdf_externally": True,
-            "profile.default_content_settings.popups": 0
+            "profile.default_content_settings.popups": 0,
+            "profile.content_settings.exceptions.automatic_downloads.*.setting": 1
         }
         chrome_options.add_experimental_option("prefs", prefs)
         
         service = ChromeService(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         
-        # 봇 탐지 우회용 스크립트 실행
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        
         return driver
 
     def _extract_text_preview(self, pdf_path: str, max_pages: int = 5) -> str:
@@ -202,23 +201,29 @@ class RiskCrawlingTool:
         content_preview = self._extract_text_preview(file_path)
         if not content_preview: return False
 
+        category_context = target_info['category']
+        # ESG Hub의 경우 이미 수집된 sub_category(E/S/G)를 활용
+        if target_info.get("type") == "ESG_HUB":
+            category_context = f"ESG_Specialized ({target_info.get('sub_category', 'General')})"
+
         prompt = f"""
         문서 제목: {title}
-        카테고리: {target_info['category']}
+        카테고리: {category_context}
         내용 미리보기:
         {content_preview[:2500]}
 
-        이 문서가 기업 현장에서 안전/환경/노무 리스크를 점검할 때 즉시 활용 가능한 **실무 자료**인지 판단해주세요.
+        이 문서가 기업 현장에서 안전/환경/노무/거버넌스 리스크를 점검하거나 ESG 경영에 활용할 수 있는 **실무 자료**인지 판단해주세요.
         
         [판단 기준]
-        - **유용함 (True)**: 체크리스트(Checklist), 자율점검표, 기술 가이드라인(KOSHA Guide), 표준계약서 양식, 매뉴얼.
-        - **유용하지 않음 (False)**: 단순 행사 알림, 인사 발령, 통계 연보, 정책 홍보 포스터.
+        - **유용함 (True)**: 체크리스트, 가이드라인, 매뉴얼, 표준계약서, ESG 평가 지표 해설.
+        - **유용하지 않음 (False)**: 단순 행사 알림, 뉴스레터, 인사 발령.
 
         결과를 JSON으로 출력:
         {{
             "is_practical": true/false,
-            "doc_type": "Checklist/Manual/Contract/Other",
+            "doc_type": "Checklist/Manual/Contract/Guide",
             "score": (1~10),
+            "esg_tag": "E/S/G/Common",
             "summary": "한 줄 요약"
         }}
         """
@@ -227,7 +232,7 @@ class RiskCrawlingTool:
             response = self.llm.invoke(prompt)
             result = json.loads(response.content.replace("```json", "").replace("```", "").strip())
             
-            print(f"      👉 결과: {result['doc_type']} (점수: {result['score']})")
+            print(f"      👉 결과: {result['doc_type']} (점수: {result['score']}, 태그: {result.get('esg_tag')})")
 
             if result['is_practical'] and result['score'] >= 7:
                 print(f"      💾 [Vector DB] 저장합니다.")
@@ -244,6 +249,7 @@ class RiskCrawlingTool:
                     metadatas=[{
                         "source": target_info['name'],
                         "category": target_info['category'],
+                        "esg_tag": result.get('esg_tag', 'Common'),
                         "title": title,
                         "doc_type": result['doc_type'],
                         "filename": filename,
@@ -260,178 +266,350 @@ class RiskCrawlingTool:
             print(f"      ❌ AI 분석 오류: {e}")
             return False
 
-    # ----------------------------------------------------------------
-    # [Fallback Strategy] Google Site Search
-    # ----------------------------------------------------------------
-    def _scrape_google_fallback(self, driver, target_info: Dict) -> List[Dict]:
-        """
-        내부 검색이 막혔을 때, Google을 통해 해당 사이트의 PDF를 직접 찾습니다.
-        Query 예시: site:moel.go.kr filetype:pdf "위험성평가"
-        """
-        query = target_info.get("google_query")
-        if not query:
-            return []
+    def _wait_for_download(self, before_files: set, title: str, target_info: Dict) -> bool:
+        """다운로드 완료 대기 (시간 증가)"""
+        # 30초 대기
+        for i in range(30):
+            time.sleep(1)
+            current_files = set(os.listdir(DOWNLOAD_DIR))
+            new_files = current_files - before_files
             
-        search_url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+            if new_files:
+                for new_file in new_files:
+                    if not new_file.endswith('.crdownload') and not new_file.endswith('.tmp'):
+                        full_path = os.path.join(DOWNLOAD_DIR, new_file)
+                        if os.path.getsize(full_path) > 0:
+                            print(f"      ✅ 다운로드 완료: {new_file}")
+                            self._analyze_and_store(full_path, title, target_info)
+                            return True
+        return False
+
+    # ----------------------------------------------------------------
+    # [Crawling] 3. ESG Finance Hub (메뉴 클릭 + 체크박스 + 검색 버튼)
+    # ----------------------------------------------------------------
+    def _scrape_esg_finance_hub(self, driver, target_info: Dict) -> List[Dict]:
+        """
+        ESG 금융 추진단 보고서 크롤러 (개선 버전)
+        - 메인 페이지에서 메뉴 클릭으로 접근
+        - E/S/G 체크박스 클릭
+        - 하위 항목 선택
+        - 검색 버튼 클릭 (핵심!)
+        - button.file-btn으로 PDF 다운로드
+        """
         name = target_info["name"]
         results = []
         
-        print(f"🚀 [Google Bypass] '{name}' 우회 검색 시도... ({query})")
+        print(f"📡 [{name}] 접속 중...")
         try:
-            driver.get(search_url)
-            # 구글 검색결과 로딩 대기
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "search")))
+            # Step 1: 메인 페이지 접속
+            main_url = "https://www.esgfinancehub.or.kr"
+            driver.get(main_url)
+            time.sleep(3)
             
-            # 검색 결과 링크 수집 (구글의 검색 결과 구조: div.g a)
-            links = driver.find_elements(By.CSS_SELECTOR, "div.g a")
+            print("   🔎 메뉴 탐색 중...")
             
-            # 상위 3개 PDF만 처리
-            pdf_links = []
-            for link in links:
-                href = link.get_attribute("href")
-                if href and href.lower().endswith(".pdf"):
-                    # 구글 트래킹 링크가 아닌 실제 링크인지 확인
-                    pdf_links.append((link, href))
+            # Step 2: "가이드라인" > "ESG공시" 메뉴 클릭
+            try:
+                from selenium.webdriver.common.action_chains import ActionChains
+                # 가이드라인 메뉴 호버
+                guideline_menu = driver.find_element(By.XPATH, "//a[contains(text(), '가이드라인')]")
+                actions = ActionChains(driver)
+                actions.move_to_element(guideline_menu).perform()
+                time.sleep(1)
+                
+                # ESG공시 서브메뉴 클릭
+                esg_submenu = driver.find_element(By.XPATH, "//a[contains(text(), 'ESG공시')]")
+                driver.execute_script("arguments[0].click();", esg_submenu)
+                time.sleep(4)
+                print("   ✓ ESG공시 페이지 접속 완료")
+                
+            except Exception as e:
+                print(f"   ⚠️ 메뉴 클릭 실패, 직접 URL 시도: {e}")
+                # 대체: 직접 URL
+                driver.get(target_info["url"])
+                time.sleep(4)
             
-            # 중복 제거 및 상위 3개 선택
-            seen_urls = set()
-            unique_pdfs = []
-            for l, h in pdf_links:
-                if h not in seen_urls:
-                    unique_pdfs.append((l, h))
-                    seen_urls.add(h)
+            # Step 3: 체크박스 로딩 대기
+            wait = WebDriverWait(driver, 15)
+            try:
+                wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='checkbox']")))
+                print("   ✓ 페이지 로딩 완료")
+                time.sleep(2)
+            except TimeoutException:
+                print("   ⚠️ 타임아웃")
             
-            print(f"   🔎 구글에서 PDF {len(unique_pdfs)}개 발견")
-
-            for i, (link_elem, pdf_url) in enumerate(unique_pdfs[:3]):
+            # Step 4: E, S, G 각 카테고리 순회
+            esg_categories = [
+                {'code': 'E', 'name': 'Environment'},
+                {'code': 'S', 'name': 'Social'},
+                {'code': 'G', 'name': 'Governance'}
+            ]
+            
+            for esg_cat in esg_categories:
                 try:
-                    title = link_elem.find_element(By.CSS_SELECTOR, "h3").text
-                    unique_key = f"Google_{name}_{title}"
+                    print(f"\n{'='*60}")
+                    print(f"   🎯 [{esg_cat['code']}] 카테고리 처리 시작")
+                    print(f"{'='*60}")
                     
-                    if self._is_processed(unique_key):
-                        print(f"   ⏭️ [Skip] {title}")
+                    # 페이지 새로고침
+                    driver.refresh()
+                    time.sleep(4)
+                    
+                    # Step 5: 메인 카테고리 체크박스 찾기
+                    category_checkbox = None
+                    all_checkboxes = driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
+                    
+                    for cb in all_checkboxes:
+                        try:
+                            parent = cb.find_element(By.XPATH, "./..")
+                            text = parent.text.strip()
+                            
+                            # "E (33)", "S (10)", "G (5)" 패턴 매칭
+                            if text.startswith(f"{esg_cat['code']} ("):
+                                category_checkbox = cb
+                                print(f"      ✓ 발견: {text}")
+                                break
+                        except:
+                            continue
+                    
+                    if not category_checkbox:
+                        print(f"      ❌ {esg_cat['code']} 체크박스를 찾을 수 없음")
                         continue
-                        
-                    print(f"   📥 [Direct Download] {title}")
                     
-                    # PDF 직접 다운로드 (requests 사용)
-                    # Selenium으로 PDF를 열면 뷰어가 뜰 수 있으므로 requests로 받음
-                    response = requests.get(pdf_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+                    # Step 6: 메인 카테고리 클릭 (펼치기)
+                    driver.execute_script("arguments[0].scrollIntoView(true);", category_checkbox)
+                    time.sleep(1)
+                    driver.execute_script("arguments[0].click();", category_checkbox)
+                    time.sleep(2)
+                    print(f"      ✓ {esg_cat['code']} 펼침")
                     
-                    if response.status_code == 200:
-                        # 파일명 안전하게 만들기
-                        safe_title = "".join([c for c in title if c.isalnum() or c in (' ', '-', '_')]).rstrip()
-                        filename = f"{safe_title}.pdf"
-                        file_path = os.path.join(DOWNLOAD_DIR, filename)
-                        
-                        with open(file_path, 'wb') as f:
-                            f.write(response.content)
+                    # Step 7: 하위 항목 찾기
+                    print(f"      🔍 하위 항목 검색 중...")
+                    time.sleep(2)
+                    
+                    all_checkboxes = driver.find_elements(By.CSS_SELECTOR, "input[type='checkbox']")
+                    sub_items = []
+                    
+                    for cb in all_checkboxes:
+                        try:
+                            parent = cb.find_element(By.XPATH, "./..")
+                            label = parent.text.strip()
                             
-                        print(f"      ✅ 다운로드 완료: {filename}")
-                        
-                        # AI 분석 및 저장
-                        if self._analyze_and_store(file_path, title, target_info):
-                            self._mark_as_processed(unique_key, title, [file_path])
-                            results.append({"source": name, "title": title, "files": [file_path]})
+                            # 메인 카테고리 제외
+                            if (label and 
+                                not label.startswith('E (') and
+                                not label.startswith('S (') and
+                                not label.startswith('G (') and
+                                2 < len(label) < 50):
+                                
+                                sub_items.append({
+                                    'checkbox': cb,
+                                    'label': label
+                                })
+                        except:
+                            continue
+                    
+                    print(f"      📋 {len(sub_items)}개 하위 항목 발견")
+                    
+                    # Step 8: 각 하위 항목 처리 (최대 2개로 제한 - 빠른 테스트)
+                    for idx, sub_item in enumerate(sub_items[:2]):
+                        try:
+                            sub_label = sub_item['label']
+                            print(f"      [{idx+1}] {sub_label}")
                             
-                except Exception as e:
-                    print(f"      ⚠️ 구글 검색결과 처리 중 오류: {e}")
+                            # 하위 체크박스 클릭
+                            sub_checkbox = sub_item['checkbox']
+                            driver.execute_script("arguments[0].scrollIntoView(true);", sub_checkbox)
+                            time.sleep(0.5)
+                            
+                            if not sub_checkbox.is_selected():
+                                driver.execute_script("arguments[0].click();", sub_checkbox)
+                                time.sleep(1)
+                            
+                            # Step 9: **검색 버튼 클릭** (핵심!)
+                            print(f"         🔍 검색 버튼 클릭 중...")
+                            try:
+                                search_button = driver.find_element(By.XPATH, "//button[contains(text(), '검색')]")
+                                driver.execute_script("arguments[0].scrollIntoView(true);", search_button)
+                                time.sleep(0.5)
+                                driver.execute_script("arguments[0].click();", search_button)
+                                time.sleep(3)
+                                print(f"         ✓ 검색 완료")
+                            except Exception as search_err:
+                                print(f"         ⚠️ 검색 버튼 오류: {search_err}")
+                            
+                            # Step 10: PDF 다운로드 버튼 찾기
+                            print(f"         📄 PDF 파일 찾기 중...")
+                            
+                            # button.file-btn 찾기
+                            download_buttons = driver.find_elements(By.CSS_SELECTOR, "button.file-btn")
+                            
+                            if not download_buttons:
+                                # onclick에 fileDown 포함된 버튼 찾기
+                                all_buttons = driver.find_elements(By.TAG_NAME, "button")
+                                download_buttons = [btn for btn in all_buttons 
+                                                  if 'fileDown' in (btn.get_attribute('onclick') or '')]
+                            
+                            print(f"         📥 {len(download_buttons)}개 다운로드 버튼 발견")
+                            
+                            # 최대 1개만 다운로드 (빠른 처리)
+                            for btn_idx, dl_button in enumerate(download_buttons[:1]):
+                                try:
+                                    file_name = dl_button.text.strip() or f"{sub_label}_{btn_idx+1}.pdf"
+                                    
+                                    unique_key = f"{name}_{esg_cat['code']}_{sub_label}_{file_name}"
+                                    
+                                    if self._is_processed(unique_key):
+                                        print(f"         ⏭️ [Skip] {file_name[:50]}")
+                                        continue
+                                    
+                                    print(f"         📥 [{btn_idx+1}] {file_name[:50]}")
+                                    
+                                    before_files = set(os.listdir(DOWNLOAD_DIR))
+                                    driver.execute_script("arguments[0].click();", dl_button)
+                                    time.sleep(2)
+                                    
+                                    # 다운로드 대기
+                                    target_info_with_sub = target_info.copy()
+                                    target_info_with_sub['sub_category'] = esg_cat['name']
+                                    
+                                    downloaded_files = []
+                                    if self._wait_for_download(before_files, file_name, target_info_with_sub):
+                                        downloaded_files.append("downloaded")
+                                    
+                                    # 처리 완료 표시
+                                    self._mark_as_processed(unique_key, file_name, downloaded_files)
+                                    results.append({
+                                        "source": name,
+                                        "category": esg_cat['code'],
+                                        "sub_category": sub_label,
+                                        "title": file_name,
+                                        "files": downloaded_files
+                                    })
+                                    
+                                except Exception as dl_err:
+                                    print(f"         ⚠️ 다운로드 오류: {dl_err}")
+                            
+                            # 체크박스 해제
+                            if sub_checkbox.is_selected():
+                                driver.execute_script("arguments[0].click();", sub_checkbox)
+                                time.sleep(0.5)
+                            
+                            print(f"      ✓ [{idx+1}] {sub_label} 처리 완료")
+                                
+                        except Exception as sub_err:
+                            print(f"      ⚠️ 하위 항목 오류: {sub_err}")
+                            continue
+                    
+                    print(f"   ✅ [{esg_cat['code']}] 카테고리 처리 완료!\n")
+                        
+                except Exception as cat_err:
+                    print(f"   ❌ {esg_cat['code']} 카테고리 오류: {cat_err}")
+                    import traceback
+                    traceback.print_exc()
+                    continue
                     
         except Exception as e:
-            print(f"❌ 구글 우회 검색 실패: {e}")
+            print(f"❌ ESG Hub 크롤링 실패: {e}")
+            import traceback
+            traceback.print_exc()
             
         return results
 
-    # ----------------------------------------------------------------
-    # [Crawling] Main Strategies
-    # ----------------------------------------------------------------
+    # ... (KOSHA, Google Fallback 등 기존 메서드 유지) ...
     def _scrape_kosha_archive(self, driver, target_info: Dict) -> List[Dict]:
-        """KOSHA는 내부 검색이 잘 되므로 기존 로직 유지"""
+        # (기존 KOSHA 크롤러 로직 유지)
         url = target_info["url"]
         name = target_info["name"]
         results = []
-        
         print(f"📡 [{name}] KOSHA 접속 중... ({url})")
         try:
             driver.get(url)
             wait = WebDriverWait(driver, 20)
+            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "table tbody tr")))
             time.sleep(3) 
-
-            for i in range(3):
+            rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
+            for i in range(min(5, len(rows))):
                 try:
-                    links = wait.until(EC.presence_of_all_elements_located((By.CSS_SELECTOR, "a")))
-                    target_links = [l for l in links if len(l.text.strip()) > 10 and l.is_displayed()]
-                    if i >= len(target_links): break
-                    
-                    post_link = target_links[i]
-                    title = post_link.text.strip()
+                    rows = driver.find_elements(By.CSS_SELECTOR, "table tbody tr")
+                    if i >= len(rows): break
+                    row = rows[i]
+                    cols = row.find_elements(By.TAG_NAME, "td")
+                    if len(cols) < 5: continue
+                    title = cols[2].text.strip()
                     unique_key = f"{name}_{title}"
-                    
                     if self._is_processed(unique_key):
                         print(f"   ⏭️ [Skip] {title}")
                         continue
-                        
                     print(f"   🔎 [New] 분석: {title}")
-                    driver.execute_script("arguments[0].click();", post_link)
-                    time.sleep(3)
-                    
-                    downloaded_files = []
-                    try:
-                        file_links = driver.find_elements(By.XPATH, "//a[contains(@href, 'download') or contains(text(), '다운로드') or contains(@href, 'file')]")
-                        for f_link in file_links:
-                            driver.execute_script("arguments[0].click();", f_link)
-                            time.sleep(5) # 다운로드 대기
-                            # (파일 확인 로직 생략 - 최근 파일 확인 등)
-                            # 여기서는 KOSHA 특성상 다운로드 성공 가정하고 다음으로
-                            break
-                    except: pass
-                    
-                    self._mark_as_processed(unique_key, title, [])
-                    driver.back()
-                    time.sleep(3)
-                except:
-                    driver.get(url) 
-                    time.sleep(3)
-        except Exception as e:
-            print(f"❌ KOSHA 크롤링 실패: {e}")
+                    file_col = cols[4]
+                    target_btn = None
+                    try: target_btn = file_col.find_element(By.CSS_SELECTOR, "a.download")
+                    except:
+                        try: target_btn = file_col.find_element(By.CSS_SELECTOR, "a[class*='down']")
+                        except:
+                            try:
+                                img = file_col.find_element(By.TAG_NAME, "img")
+                                target_btn = img.find_element(By.XPATH, "./..")
+                            except: pass
+                    if target_btn:
+                        before_files = set(os.listdir(DOWNLOAD_DIR))
+                        driver.execute_script("arguments[0].click();", target_btn)
+                        time.sleep(3)
+                        downloaded_files = []
+                        if self._wait_for_download(before_files, title, target_info):
+                            downloaded_files.append("downloaded")
+                        self._mark_as_processed(unique_key, title, downloaded_files)
+                        results.append({"source": name, "title": title, "files": downloaded_files})
+                except Exception as e: print(f"      ⚠️ Row {i} Error: {e}")
+        except Exception as e: print(f"❌ KOSHA Error: {e}")
         return results
 
-    def _scrape_gov_board(self, driver, target_info: Dict) -> List[Dict]:
-        """
-        일반 공공기관 게시판 크롤링 시도 -> 실패 시 Google 우회 검색으로 전환
-        """
-        url = target_info["url"]
+    def _scrape_google_fallback(self, driver, target_info: Dict) -> List[Dict]:
+        # (기존 Google Fallback 로직 유지)
+        query = target_info.get("google_query")
+        if not query: return []
+        search_url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
         name = target_info["name"]
-        
-        print(f"📡 [{name}] 접속 시도... ({url})")
+        results = []
+        print(f"🚀 [Google Bypass] '{name}' 우회 검색... ({query})")
         try:
-            driver.get(url)
-            wait = WebDriverWait(driver, 10)
-            
-            # 구조 감지 시도
-            try:
-                wait.until(EC.presence_of_element_located((By.TAG_NAME, "tbody")))
-                print("   ✅ 내부 게시판 구조 감지됨. 크롤링 진행.")
-                # (여기에 기존 테이블 크롤링 로직이 들어가야 하지만, 
-                #  현재 접속 자체가 불안정하므로 바로 Google Fallback을 우선시하는 전략도 가능)
-                #  일단 구조가 감지되어도 내용이 없으면 실패로 간주
-                rows = driver.find_elements(By.TAG_NAME, "tr")
-                if len(rows) < 2: raise Exception("Empty Board")
-                
-            except Exception:
-                print("   ⚠️ 내부 게시판 구조 감지 실패 또는 차단됨.")
-                raise Exception("Access Blocked or Structure Unknown")
-
-            # (성공 시 로직은 생략하고, 실패 유도하여 바로 구글 검색으로 넘김 - 안정성 우선)
-            # 사용자 요청: "우회해서 접속을 하는 방법을 찾아야할 것 같아"
-            # 따라서 바로 Exception을 발생시켜 Fallback으로 넘깁니다.
-            raise Exception("Force Fallback to Google")
-
-        except Exception as e:
-            print(f"   🔄 내부 접속 불가 ({e}). Google 우회 검색으로 전환합니다.")
-            return self._scrape_google_fallback(driver, target_info)
-
-        return []
+            driver.get(search_url)
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "search")))
+            links = driver.find_elements(By.CSS_SELECTOR, "a")
+            pdf_links = []
+            for link in links:
+                href = link.get_attribute("href")
+                if href and (href.lower().endswith(".pdf") or href.lower().endswith(".hwp")):
+                    pdf_links.append((link, href))
+            seen_urls = set()
+            unique_files = []
+            for l, h in pdf_links:
+                if h not in seen_urls:
+                    unique_files.append((l, h))
+                    seen_urls.add(h)
+            for i, (link_elem, file_url) in enumerate(unique_files[:3]):
+                try:
+                    title = link_elem.text or "Untitled"
+                    unique_key = f"Google_{name}_{title}"
+                    if self._is_processed(unique_key):
+                        print(f"   ⏭️ [Skip] {title}")
+                        continue
+                    print(f"   📥 [Direct Download] {title}")
+                    response = requests.get(file_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+                    if response.status_code == 200:
+                        ext = os.path.splitext(file_url)[1] or ".pdf"
+                        safe_title = "".join([c for c in title if c.isalnum() or c in (' ', '-', '_', '.')]).rstrip()[:50]
+                        filename = f"{safe_title}{ext}"
+                        file_path = os.path.join(DOWNLOAD_DIR, filename)
+                        with open(file_path, 'wb') as f: f.write(response.content)
+                        print(f"      ✅ 다운로드 완료: {filename}")
+                        if self._analyze_and_store(file_path, title, target_info):
+                            self._mark_as_processed(unique_key, title, [file_path])
+                            results.append({"source": name, "title": title, "files": [file_path]})
+                except Exception as e: print(f"      ⚠️ File Error: {e}")
+        except Exception as e: print(f"❌ Google Error: {e}")
+        return results
 
     def collect_all_guides(self) -> str:
         print("\n" + "="*50)
@@ -445,9 +623,10 @@ class RiskCrawlingTool:
             for target in RISK_TARGETS:
                 if target.get("type") == "KOSHA_ARCHIVE":
                     res = self._scrape_kosha_archive(driver, target)
+                elif target.get("type") == "ESG_HUB":
+                    res = self._scrape_esg_finance_hub(driver, target)
                 else:
-                    # 정부 사이트는 바로 접속 시도 후 실패 시 구글 우회
-                    res = self._scrape_gov_board(driver, target)
+                    res = self._scrape_google_fallback(driver, target)
                 total_results.extend(res)
         finally:
             driver.quit()
@@ -455,22 +634,21 @@ class RiskCrawlingTool:
         report = f"## 🛡️ 리스크 진단 자료 수집 리포트\n"
         if total_results:
             for item in total_results:
-                files = ", ".join([os.path.basename(f) for f in item['files']])
-                report += f"- **[{item['source']}]** {item['title']}\n  - 💾 {files}\n"
+                files = f"{len(item['files'])}개 파일" if item['files'] else "없음"
+                report += f"- **[{item['source']}]** {item['title']} (💾 {files})\n"
         else:
-            report += "- 신규 자료가 없습니다 (모두 최신 또는 수집 실패).\n"
+            report += "- 신규 자료가 없습니다.\n"
             
         print(report)
         return report
 
-# LangChain Tool Export
 _risk_collector = RiskCrawlingTool()
 
 @tool
 def fetch_risk_guides(query: str = "safety checklist") -> str:
     """
-    Collects practical risk assessment guides, checklists, and manuals 
-    from KOSHA, MOEL, ME, FTC.
+    Collects practical risk assessment guides and checklists from KOSHA, MOEL, ME, FTC, and ESG Finance Hub.
+    Uses Google Search fallback for government sites.
     """
     return _risk_collector.collect_all_guides()
 

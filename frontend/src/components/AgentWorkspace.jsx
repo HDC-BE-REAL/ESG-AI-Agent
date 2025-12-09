@@ -43,16 +43,16 @@ export default function AgentWorkspace() {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full text-slate-900">
             {/* Tabs */}
-            <div className="flex border-b border-gray-200 bg-white">
+            <div className="flex border-b border-white/70 bg-white/60 rounded-t-xl overflow-hidden">
                 {AGENTS.map((agent) => (
                     <button
                         key={agent.id}
                         onClick={() => setActiveTab(agent.id)}
-                        className={`px-4 py-3 text-sm font-medium focus:outline-none ${activeTab === agent.id
-                            ? 'border-b-2 border-blue-500 text-blue-600'
-                            : 'text-gray-500 hover:text-gray-700'
+                        className={`px-4 py-3 text-sm font-medium focus:outline-none transition-colors cursor-pointer ${activeTab === agent.id
+                            ? 'border-b-2 border-moonlightPurple text-moonlightPurple'
+                            : 'text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         {agent.name}
@@ -63,21 +63,21 @@ export default function AgentWorkspace() {
             {/* Content Area */}
             <div className="flex-1 p-6 overflow-y-auto">
                 <div className="mb-4 flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-gray-800">
+                    <h2 className="text-2xl font-bold">
                         {AGENTS.find(a => a.id === activeTab)?.name}
                     </h2>
                     <button
                         onClick={handleRunAgent}
                         disabled={isLoading}
-                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+                        className="bg-white text-[#1b1f3a] border border-moonlightPurple px-4 py-2 rounded shadow-md hover:shadow-lg transition-transform cursor-pointer hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? 'Running...' : 'Run Agent'}
                     </button>
                 </div>
 
-                <div className="bg-white p-6 rounded-lg shadow-sm min-h-[400px]">
+                <div className="bg-white/80 p-6 rounded-lg shadow min-h-[400px]">
                     {isLoading ? (
-                        <div className="flex justify-center items-center h-full text-gray-400">
+                        <div className="flex justify-center items-center h-full text-slate-500">
                             Processing...
                         </div>
                     ) : agentOutput ? (
@@ -85,7 +85,7 @@ export default function AgentWorkspace() {
                             <ReactMarkdown
                                 components={{
                                     a: ({ node, ...props }) => (
-                                        <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" />
+                                        <a {...props} target="_blank" rel="noopener noreferrer" className="text-moonlightBlue hover:underline" />
                                     )
                                 }}
                             >
@@ -93,7 +93,7 @@ export default function AgentWorkspace() {
                             </ReactMarkdown>
                         </div>
                     ) : (
-                        <div className="text-center text-gray-400 mt-20">
+                        <div className="text-center text-slate-400 mt-20">
                             Select an agent and click "Run Agent" to start.
                         </div>
                     )}

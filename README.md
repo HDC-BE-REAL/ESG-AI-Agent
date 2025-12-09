@@ -8,7 +8,7 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 
 ---
 
-## 📌 프로젝트 개요
+## 📌 Overview
 **ESG Insight Agent**는 건설사를 위한 ESG 업무 자동화 AI 시스템으로,  
 정책 분석 → 리스크 진단 → 보고서 생성 → 규제 모니터링을 통합적으로 수행합니다.
 
@@ -42,7 +42,7 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 
 ---
 
-# 🧩 주요 기능
+# 🧩 ESG Reasoning Modules
 
 ### ✔ 정책 분석 모듈
 - K-ESG / SASB / GRI 자동 비교
@@ -60,9 +60,24 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 - 기관별 규제 변경 감지
 - 주간 리포트 생성
 
+
 ---
 
-# 🏗️ 시스템 구조
+
+# 🔌 3. API Specification
+
+| 메서드 | 경로 | 설명 |
+|--------|------|--------|
+| POST | /policy/summary | ESG 문서 요약 |
+| POST | /policy/compare | 문서 비교 |
+| POST | /risk/diagnose | 리스크 분석 |
+| POST | /report/generate | ESG 보고서 생성 |
+| GET | /monitor/regulation | 규제 변경 감지 |
+
+
+---
+
+# 🏗️ System Architecture
 
 <p align="center">
   <img src="./images/system_architecture.png" width="80%" />
@@ -130,7 +145,13 @@ pip install -r requirements.txt
 ./run_app.sh
 
 ---
+# 📚 문서 목록
 
+- 📘 기획서: `docs/project_plan.md`
+- 🛠 설계서: `README.md`
+- 📊 상태 점검표: `docs/mid_review.md`
+
+---
 
 # 📄 License
 MIT License
