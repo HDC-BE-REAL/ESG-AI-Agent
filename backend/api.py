@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
 
 class AgentRequest(BaseModel):
     query: str
+    focus_area: Optional[str] = None  # 리스크 도구 등에서 안전/환경 등 영역을 지정할 때 사용
 
 @router.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
@@ -24,11 +25,15 @@ async def upload_file(file: UploadFile = File(...)):
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-        
-        # Update shared context
+
+        # Update shared context (중복 제거 + 최대 50개 유지)
         current_files = agent_manager.get_context().get("uploaded_files", [])
-        current_files.append({"filename": file.filename, "path": file_path})
-        agent_manager.update_context("uploaded_files", current_files)
+        filtered = [entry for entry in current_files if entry.get("filename") != file.filename]
+        relative_path = f"/static/uploads/{file.filename}"
+        filtered.append({"filename": file.filename, "path": relative_path})
+        if len(filtered) > 50:
+            filtered = filtered[-50:]
+        agent_manager.update_context("uploaded_files", filtered)
         
         return {"filename": file.filename, "status": "uploaded", "path": file_path}
     except Exception as e:
@@ -48,7 +53,8 @@ async def run_agent(agent_type: str, request: AgentRequest):
     if agent_type == "policy":
         result = await agent_manager.run_policy_agent(request.query)
     elif agent_type == "risk":
-        result = await agent_manager.run_risk_agent(request.query)
+        # 안전/환경/노동/거버넌스 등 특정 영역을 focus_area로 전달 가능
+        result = await agent_manager.run_risk_agent(request.query, request.focus_area)
     elif agent_type == "report":
         result = await agent_manager.run_report_agent(request.query)
     elif agent_type == "custom":
@@ -68,14 +74,16 @@ async def chat(request: ChatRequest):
         context = agent_manager.get_context()
         
         # 2. Construct System Prompt
+        risk_assessment = context.get('risk_assessment')
+        risk_summary = str(risk_assessment)[:500] + "..." if risk_assessment else "None"
         system_prompt = f"""
         You are an expert ESG AI Assistant. Your goal is to help the user with ESG (Environmental, Social, and Governance) related tasks.
-        
+
         [Current Context]
         - Uploaded Files: {[f['filename'] for f in context.get('uploaded_files', [])]}
         - Latest Regulation Updates: {str(context.get('regulation_updates'))[:500] + "..." if context.get('regulation_updates') else "None"}
         - Policy Analysis: {context.get('policy_analysis', 'None')}
-        - Risk Assessment: {context.get('risk_assessment', 'None')}
+        - Risk Assessment: {risk_summary}
         - Report Draft: {context.get('report_draft', 'None')}
         
         [Instructions]
@@ -92,8 +100,8 @@ async def chat(request: ChatRequest):
             SystemMessage(content=system_prompt),
             HumanMessage(content=request.query)
         ]
-        
-        response_msg = llm.invoke(messages)
+
+        response_msg = await llm.ainvoke(messages)
         response_text = response_msg.content
         
         # 4. Update Chat History (Optional, for future context)

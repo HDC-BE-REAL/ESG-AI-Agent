@@ -48,7 +48,7 @@ export default function ChatInterface() {
     }
 
     return (
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full text-slate-900">
             <div className="flex-1 overflow-y-auto mb-4 space-y-4 pr-2">
                 {messages.map((msg, index) => (
                     <div
@@ -56,15 +56,15 @@ export default function ChatInterface() {
                         className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                         <div
-                            className={`max-w-[85%] rounded-lg p-3 ${msg.role === 'user'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-100 text-gray-800 prose prose-sm max-w-none'
-                                }`}
+                            className={`p-3 rounded-xl max-w-[80%] shadow-md ${msg.role === 'user'
+                                ? 'bg-gradient-to-r from-moonlightPurple to-moonlightBlue text-white ml-auto'
+                                : 'bg-white/80 text-slate-900'}
+                                `}
                         >
                             <ReactMarkdown
                                 components={{
                                     a: ({ node, ...props }) => (
-                                        <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline" />
+                                        <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-200 hover:underline" />
                                     )
                                 }}
                             >
@@ -82,12 +82,12 @@ export default function ChatInterface() {
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyPress}
                     placeholder="Type your message..."
-                    className="w-full border border-gray-300 rounded-lg p-3 pr-12 focus:outline-none focus:border-blue-500 resize-none h-24"
+                    className="w-full bg-white/80 border border-white/70 rounded-2xl p-3 pr-12 text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-moonlightPurple resize-none h-24"
                 />
                 <button
                     onClick={handleSend}
                     disabled={isLoading}
-                    className="absolute bottom-3 right-3 text-blue-600 hover:text-blue-800 disabled:opacity-50"
+                    className="absolute bottom-3 right-3 text-moonlightPurple hover:text-moonlightBlue disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
                 >
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />

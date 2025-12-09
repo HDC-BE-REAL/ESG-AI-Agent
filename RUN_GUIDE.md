@@ -64,6 +64,11 @@ source venv/bin/activate
 python -m backend.main
 ```
 
+```bash
+export CHROME_BINARY=/usr/bin/chromium-browser
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
 ### Frontend
 ```bash
 cd frontend

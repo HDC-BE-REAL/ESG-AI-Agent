@@ -225,3 +225,11 @@ class PolicyTool:
 
 # Graph/LangGraph에서 import할 실제 인스턴스
 policy_tool = PolicyTool()
+
+
+def policy_guideline_tool(query: str) -> str:
+    """외부 모듈에서 쉽게 호출할 수 있는 정책 분석 헬퍼"""
+    output = policy_tool.run({"query": query})
+    if hasattr(output, "content"):
+        return output.content  # ChatMessage 대응
+    return str(output)

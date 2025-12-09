@@ -42,3 +42,6 @@ pytesseract>=0.3.10
 fastapi>=0.111.0
 uvicorn>=0.30.0
 python-multipart>=0.0.9
+redis>=5.0.0
+selenium>=4.11.2
+webdriver-manager>=3.8.6
