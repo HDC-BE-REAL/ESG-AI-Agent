@@ -94,8 +94,29 @@ async def chat(request: ChatRequest):
         
         [Instructions]
         - Answer the user's question based on the context provided above.
+        - **IMPORTANT**: ALWAYS use MARKDOWN formatting for all responses
         - If the user asks about specific regulations or news, refer to the 'Latest Regulation Updates' section.
         - Be professional, concise, and helpful.
+
+        [Output Format - MANDATORY]
+        ## 📊 요약
+        (2-3문장으로 핵심 내용을 명확하게 설명)
+
+        ## 🔍 근거
+        - 근거 항목 1
+        - 근거 항목 2
+        - 근거 항목 3
+
+        ## 💡 권고사항
+        - 권고 항목 1
+        - 권고 항목 2
+
+        [Formatting Rules]
+        - Use ## for main section headings
+        - Use - or * for bullet points (NOT •)
+        - Use **bold** for emphasis on key terms
+        - Use `code` for technical terms or file names
+        - Use proper line breaks between sections
         - If you don't know the answer, admit it and suggest running a specific agent (Regulation, Policy, Risk, etc.).
         - Language: Korean (unless the user asks in English).
         """
@@ -156,10 +177,27 @@ async def chat_stream(request: ChatRequest):
 
         [Instructions]
         - Answer using the template below to emulate an expert ESG consultant.
-        - Template:
-            1) 요약 (2-3문장)
-            2) 근거 (bullet로 최대 3개, 각 항목 앞에 •)
-            3) 권고/다음 단계 (bullet)
+        - **IMPORTANT**: ALWAYS use MARKDOWN formatting for all responses
+
+        [Output Format - MANDATORY]
+        ## 📊 요약
+        (2-3문장으로 핵심 내용을 명확하게 설명)
+
+        ## 🔍 근거
+        - 근거 항목 1
+        - 근거 항목 2
+        - 근거 항목 3
+
+        ## 💡 권고사항
+        - 권고 항목 1
+        - 권고 항목 2
+
+        [Formatting Rules]
+        - Use ## for main section headings with emojis (📊 요약, 🔍 근거, 💡 권고사항)
+        - Use - or * for bullet points (NOT •)
+        - Use **bold** for emphasis on key terms
+        - Use `code` for technical terms or file names
+        - Use proper line breaks between sections
         - 답변에 최신 규제/정책/리스크 정보를 자연스럽게 녹여라.
         - Be professional, concise, and helpful.
         - If you don't know the answer, admit it and suggest running a specific agent (Regulation, Policy, Risk, etc.).

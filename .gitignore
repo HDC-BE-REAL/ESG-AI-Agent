@@ -3,5 +3,6 @@ venv/
 .env
 vector_db/esg_all/
 data/crawling/
+
 __pycache__/
 *.pyc

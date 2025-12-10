@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from src.workflows import build_workflow
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 def run_agent(query: str) -> str:
     app = build_workflow()
