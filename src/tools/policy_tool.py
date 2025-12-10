@@ -219,6 +219,10 @@ class PolicyTool:
         mode = self.detect_mode(query)
 
         result = self.run_mode(mode, query)
+        
+        # [Fix] AIMessage 객체가 반환될 경우 content만 추출
+        if hasattr(result, "content"):
+            result = result.content
 
         return base_info + "\n\n" + result
 

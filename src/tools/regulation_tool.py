@@ -731,10 +731,16 @@ class RegulationMonitor:
                 if not info.get('files'):
                     continue
                 
+                # [Fix] 실제 파일 존재 여부 확인 (사용자가 삭제했을 수도 있음)
+                valid_files = [f for f in info['files'] if os.path.exists(f)]
+                if not valid_files:
+                    print(f"   ⚠️ 파일 소실됨 (Skip): {info['title']}")
+                    continue
+                
                 recent_reports.append({
                     "source": "History", 
                     "title": info['title'], 
-                    "files": info['files'],
+                    "files": valid_files,
                     "summary": info.get('summary'),
                     "key": url,
                     "origin_url": info.get('origin_url')
