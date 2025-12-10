@@ -41,6 +41,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .chat-messages {
@@ -48,7 +49,7 @@
   overflow-y: auto;
   margin-bottom: 1rem;
   padding: 0.8rem;
-  background-color: rgba(248, 249, 255, 0.9);
+  background-color: #fff;
   border-radius: 18px;
   border: 1px solid rgba(195, 204, 255, 0.6);
 }
@@ -56,8 +57,100 @@
 .chat-message {
   padding: 0.6rem 0.9rem;
   border-radius: 15px;
-  margin-bottom: 0.6rem;
-  max-width: 85%;
+  margin-bottom: 0.5rem;
+  max-width: 80%;
+  box-shadow: 0 4px 15px rgba(30, 35, 70, 0.08);
+  word-break: break-word;
+}
+
+.markdown-h1,
+.markdown-h2,
+.markdown-h3 {
+  margin: 0.3rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.markdown-h1::before {
+  content: "🌟";
+}
+
+.markdown-h2::before {
+  content: "📌";
+}
+
+.markdown-h3::before {
+  content: "▶";
+}
+
+.markdown-strong {
+  color: #303a7b;
+}
+
+.markdown-list {
+  margin: 0.35rem 0 0.35rem 1rem;
+  padding-left: 1rem;
+}
+
+.markdown-code {
+  background: rgba(30, 35, 70, 0.12);
+  padding: 0.05rem 0.35rem;
+  border-radius: 4px;
+}
+
+.markdown-pre,
+.markdown-code-block {
+  background: rgba(30, 35, 70, 0.12);
+  padding: 0.4rem 0.6rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 0.4rem 0;
+}
+
+.chat-message h1,
+.chat-message h2,
+.chat-message h3,
+.chat-message h4 {
+  margin: 0.35rem 0;
+  font-weight: 600;
+  color: #1f2a56;
+}
+
+.chat-message h1 {
+  font-size: 1.15rem;
+}
+
+.chat-message h2 {
+  font-size: 1.05rem;
+}
+
+.chat-message ul,
+.chat-message ol {
+  margin: 0.35rem 0 0.35rem 1.2rem;
+  padding: 0;
+  color: #2a3155;
+}
+
+.chat-message li {
+  margin-bottom: 0.2rem;
+}
+
+.chat-message code,
+.chat-message pre {
+  background: rgba(30, 35, 70, 0.08);
+  border-radius: 6px;
+  font-family: "Fira Code", Consolas, monospace;
+}
+
+.chat-message code {
+  padding: 0.1rem 0.35rem;
+}
+
+.chat-message pre {
+  padding: 0.4rem 0.6rem;
+  overflow-x: auto;
+  margin: 0.4rem 0;
 }
 
 .chat-message.user {
@@ -90,7 +183,7 @@
   font-family: inherit;
   color: #2a3155;
   min-height: 32px;
-  text-align: center;
+  text-align: left;
 }
 
 .chat-input textarea:focus {

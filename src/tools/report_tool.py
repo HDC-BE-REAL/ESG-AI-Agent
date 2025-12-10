@@ -32,3 +32,8 @@ report_draft_tool = StructuredTool.from_function(
     func=_draft_report,
     args_schema=ReportDraftInput,
 )
+
+
+def draft_report(query: str, audience: str | None = None) -> str:
+    """외부 모듈에서 텍스트 보고서를 직접 얻을 수 있도록 돕는 헬퍼"""
+    return _draft_report(query, audience)

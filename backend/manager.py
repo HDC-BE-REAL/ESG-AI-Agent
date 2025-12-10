@@ -8,6 +8,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.tools.regulation_tool import _monitor_instance as regulation_monitor
 from src.tools.risk import RiskToolOrchestrator
+from src.tools.policy_tool import policy_guideline_tool
+from src.tools.report_tool import draft_report
 from backend.kv_store import kv_store
 
 LOGGER = logging.getLogger(__name__)
@@ -61,9 +63,15 @@ class AgentManager:
             print(error_msg)
             return error_msg
 
-    async def run_policy_agent(self, query: str):
-        # Placeholder
-        return "Policy Agent not implemented yet."
+    async def run_policy_agent(self, query: str) -> str:
+        try:
+            result = policy_guideline_tool(query)
+            self.update_context("policy_analysis", result)
+            return result
+        except Exception as exc:
+            error_msg = f"Policy agent 실행 오류: {exc}"
+            LOGGER.error(error_msg)
+            return error_msg
 
     async def run_risk_agent(self, query: str, focus_area: Optional[str] = None) -> str:
         """리스크 오케스트레이터를 호출해 ISO31000/Materiality 결과를 생성하고 컨텍스트에 저장"""
@@ -77,13 +85,29 @@ class AgentManager:
             print(error_msg)
             return error_msg
 
-    async def run_report_agent(self, query: str):
-        # Placeholder
-        return "Report Agent not implemented yet."
+    async def run_report_agent(self, query: str, audience: Optional[str] = None) -> str:
+        try:
+            result = draft_report(query, audience)
+            self.update_context("report_draft", result)
+            return result
+        except Exception as exc:
+            error_msg = f"Report agent 실행 오류: {exc}"
+            LOGGER.error(error_msg)
+            return error_msg
 
-    async def run_custom_agent(self, query: str):
-        # Placeholder
-        return "Custom Agent not implemented yet."
+    async def run_custom_agent(self, query: str, *, focus_area: Optional[str] = None, audience: Optional[str] = None) -> Dict[str, str]:
+        """Policy/Regulation/Risk/Report를 한 번에 실행한 종합 리포트"""
+        policy = await self.run_policy_agent(query)
+        regulation = await self.run_regulation_agent(query)
+        risk = await self.run_risk_agent(query, focus_area)
+        report = await self.run_report_agent(query, audience)
+        combined = {
+            "policy": policy,
+            "regulation": regulation,
+            "risk": risk,
+            "report": report,
+        }
+        return combined
 
 # Singleton instance
 agent_manager = AgentManager()
