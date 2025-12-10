@@ -26,7 +26,9 @@ class RedisKVStore:
             self._client.ping()
             LOGGER.info("Redis KV 스토어 연결 성공: %s", REDIS_URL)
         except Exception as exc:  # pragma: no cover - 네트워크 예외
-            LOGGER.warning("Redis 연결 실패(%s): %s", REDIS_URL, exc)
+            # Redis is optional, suppress loud warning
+            # LOGGER.warning("Redis 연결 실패(%s): %s", REDIS_URL, exc)
+            LOGGER.info("Redis 연결 실패 (선택 사항): 메모리 모드로 동작합니다.")
             self._client = None
 
     @property

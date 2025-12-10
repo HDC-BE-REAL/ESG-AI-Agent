@@ -10,6 +10,7 @@ from src.tools.regulation_tool import _monitor_instance as regulation_monitor
 from src.tools.risk import RiskToolOrchestrator
 from src.tools.policy_tool import policy_guideline_tool
 from src.tools.report_tool import draft_report
+from src.workflows.custom_graph import run_langgraph_pipeline
 from backend.kv_store import kv_store
 
 LOGGER = logging.getLogger(__name__)
@@ -96,18 +97,18 @@ class AgentManager:
             return error_msg
 
     async def run_custom_agent(self, query: str, *, focus_area: Optional[str] = None, audience: Optional[str] = None) -> Dict[str, str]:
-        """Policy/Regulation/Risk/Report를 한 번에 실행한 종합 리포트"""
-        policy = await self.run_policy_agent(query)
-        regulation = await self.run_regulation_agent(query)
-        risk = await self.run_risk_agent(query, focus_area)
-        report = await self.run_report_agent(query, audience)
-        combined = {
-            "policy": policy,
-            "regulation": regulation,
-            "risk": risk,
-            "report": report,
+        """LangGraph 기반 파이프라인으로 4개 모듈을 동시에 실행"""
+        result = run_langgraph_pipeline(query, focus_area, audience)
+        self.update_context("policy_analysis", result.get("policy"))
+        self.update_context("regulation_updates", result.get("regulation"))
+        self.update_context("risk_assessment", result.get("risk"))
+        self.update_context("report_draft", result.get("report"))
+        return {
+            "policy": result.get("policy", ""),
+            "regulation": result.get("regulation", ""),
+            "risk": result.get("risk", ""),
+            "report": result.get("report", ""),
         }
-        return combined
 
 # Singleton instance
 agent_manager = AgentManager()

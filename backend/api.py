@@ -45,15 +45,12 @@ async def upload_file(file: UploadFile = File(...)):
 async def get_context():
     return agent_manager.get_context()
 
-@router.post("/agent/regulation")
-async def run_regulation_agent(request: AgentRequest):
-    result = await agent_manager.run_regulation_agent(request.query)
-    return {"result": result}
-
 @router.post("/agent/{agent_type}")
 async def run_agent(agent_type: str, request: AgentRequest):
     if agent_type == "policy":
         result = await agent_manager.run_policy_agent(request.query)
+    elif agent_type == "regulation":
+        result = await agent_manager.run_regulation_agent(request.query)
     elif agent_type == "risk":
         result = await agent_manager.run_risk_agent(request.query, request.focus_area)
     elif agent_type == "report":
@@ -134,11 +131,11 @@ async def chat(request: ChatRequest):
         response_msg = await llm.ainvoke(messages)
         response_text = response_msg.content
         
-        # 4. Update Chat History (Optional, for future context)
-        # current_history = context.get("chat_history", [])
-        # current_history.append({"role": "user", "content": request.query})
-        # current_history.append({"role": "assistant", "content": response_text})
-        # agent_manager.update_context("chat_history", current_history)
+        #4. Update Chat History (Optional, for future context)
+        current_history = context.get("chat_history", [])
+        current_history.append({"role": "user", "content": request.query})
+        current_history.append({"role": "assistant", "content": response_text})
+        agent_manager.update_context("chat_history", current_history)
         
         return {"response": response_text}
         
@@ -154,6 +151,11 @@ async def chat_stream(request: ChatRequest):
         custom_result = await agent_manager.run_custom_agent(request.query)
         risk_assessment = context.get('risk_assessment')
         risk_summary = str(risk_assessment)[:500] + "..." if risk_assessment else "None"
+        history = context.get("chat_history", [])
+        history_text = "\n".join(
+            [f"User: {entry['content']}" if entry.get('role') == 'user' else f"Assistant: {entry['content']}" for entry in history]
+        )
+
         system_prompt = f"""
         You are an expert ESG AI Assistant. Your goal is to help the user with ESG (Environmental, Social, and Governance) related tasks.
 
@@ -163,6 +165,9 @@ async def chat_stream(request: ChatRequest):
         - Policy Analysis: {context.get('policy_analysis', 'None')}
         - Risk Assessment: {risk_summary}
         - Report Draft: {context.get('report_draft', 'None')}
+
+        [Conversation History]
+        {history_text if history_text else 'None'}
 
         [Auto-Generated Insights]
         - Policy Summary: {custom_result.get('policy')}

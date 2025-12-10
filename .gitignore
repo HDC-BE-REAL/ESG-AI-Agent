@@ -4,8 +4,5 @@ venv/
 vector_db/esg_all/
 data/crawling/
 
-scripts/*.deb
 __pycache__/
 *.pyc
-google-chrome-stable_current_amd64.deb
-scripts/google-chrome-stable_current_amd64.deb

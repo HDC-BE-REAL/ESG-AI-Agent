@@ -44,7 +44,7 @@ DOWNLOAD_DIR = os.path.join(DATA_DIR, "domestic")
 HISTORY_DIR = os.path.join(DATA_DIR, "crawling")
 HISTORY_FILE = os.path.join(HISTORY_DIR, "crawl_history.json")
 LAST_CRAWL_FILE = os.path.join(HISTORY_DIR, "last_crawl.json")
-VECTOR_DB_DIR = os.path.join(BASE_DIR, "vector_db", "all_esg")  # 벡터DB 저장 경로
+VECTOR_DB_DIR = os.path.join(BASE_DIR, "vector_db", "esg_all")  # 벡터DB 저장 경로
 
 # [변경] 모니터링 타겟 목록
 # law.go.kr은 별도 로직으로 처리하기 위해 type을 구분하거나 URL로 식별
@@ -731,10 +731,16 @@ class RegulationMonitor:
                 if not info.get('files'):
                     continue
                 
+                # [Fix] 실제 파일 존재 여부 확인 (사용자가 삭제했을 수도 있음)
+                valid_files = [f for f in info['files'] if os.path.exists(f)]
+                if not valid_files:
+                    print(f"   ⚠️ 파일 소실됨 (Skip): {info['title']}")
+                    continue
+                
                 recent_reports.append({
                     "source": "History", 
                     "title": info['title'], 
-                    "files": info['files'],
+                    "files": valid_files,
                     "summary": info.get('summary'),
                     "key": url,
                     "origin_url": info.get('origin_url')

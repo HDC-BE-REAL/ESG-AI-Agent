@@ -102,7 +102,7 @@ class PolicySummarizer:
         self.llm = ChatOpenAI(model="gpt-4o-mini")
 
     def summarize(self, text: str):
-        related_docs = retriever.get_relevant_documents(text)
+        related_docs = retriever.invoke(text)
         context = "\n\n".join([d.page_content for d in related_docs])
 
         prompt = SUMMARIZE_PROMPT.format(text=text + "\n\n[관련 표준 근거]\n" + context)
@@ -118,8 +118,8 @@ class PolicyComparator:
         self.llm = ChatOpenAI(model="gpt-4o-mini")
 
     def compare(self, a: str, b: str):
-        context_a = retriever.get_relevant_documents(a)
-        context_b = retriever.get_relevant_documents(b)
+        context_a = retriever.invoke(a)
+        context_b = retriever.invoke(b)
 
         context = "\n\n".join([d.page_content for d in context_a + context_b])
 
@@ -219,6 +219,10 @@ class PolicyTool:
         mode = self.detect_mode(query)
 
         result = self.run_mode(mode, query)
+        
+        # [Fix] AIMessage 객체가 반환될 경우 content만 추출
+        if hasattr(result, "content"):
+            result = result.content
 
         return base_info + "\n\n" + result
 

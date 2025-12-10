@@ -3,7 +3,7 @@
 ## 백엔드 구조 (FastAPI)
 - `backend/main.py`: FastAPI 앱, CORS 설정, `/static` 서빙.
 - `backend/api.py`: 파일 업로드, `/api/agent/{type}`, `/api/chat`, `/api/chat/stream` 엔드포인트.
-- `backend/manager.py`: Policy/Regulation/Risk/Report 에이전트 실행 및 Redis 기반 컨텍스트 관리.
+- `backend/manager.py`: Policy/Regulation/Risk/Report 에이전트 실행 및 Redis 기반 컨텍스트 관리, `run_custom_agent`는 LangGraph 파이프라인을 호출해 네 모듈을 한 번에 실행한다.
 - `src/tools/`: policy/risk/regulation/report LangChain 모듈, 각자 VectorDB + LLM 체인을 보유.
 - `vector_db/`: PDF → chunk → 임베딩(BGE) → Chroma 저장 스크립트(`vector_db/esg_all.py`).
 

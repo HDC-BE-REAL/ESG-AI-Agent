@@ -386,7 +386,11 @@ def perform_ocr(image: Image.Image) -> str:
             return "\n".join(texts)
 
     # 백업: 기존 Tesseract 전략 유지
-    return pytesseract.image_to_string(image, lang="kor+eng")
+    try:
+        return pytesseract.image_to_string(image, lang="kor+eng")
+    except Exception as e:
+        print(f"⚠️ OCR Skipped (Tesseract missing or error): {e}")
+        return ""
 
 
 def normalize_ocr_text(text: str) -> str:
@@ -557,7 +561,7 @@ def build_vector_db(clear_existing: bool = False):
     existing_ids, vectordb = load_existing_chunk_ids(persist_dir)
     new_chunks = []
 
-    for folder in ["domestic", "global", "companies"]:
+    for folder in ["domestic", "global", "companies", "risk_data"]:
         path = DATA_DIR / folder
         if not path.exists():
             continue
