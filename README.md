@@ -2,9 +2,9 @@
 # 🌍 ESG Insight Agent
 AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 
-<p align="center">
-  <img src="./images/banner.png" width="80%" />
-</p>
+<div align="center">
+  <img src="./images/banner.png" width="80%" alt="ESG Insight Agent Banner"/>
+</div>
 
 ---
 
@@ -79,33 +79,34 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 
 # 🏗️ System Architecture
 
-<p align="center">
-  <img src="./images/system_architecture.png" width="80%" />
-  <img src="./images/system_architecture1.png" width="80%" />
+<div align="center">
+  <img src="./images/system_architecture.png" width="80%" alt="System Architecture"/>
+  <img src="./images/system_architecture1.png" width="80%" alt="System Architecture 1"/>
+</div>
 
 ---
 
 # 🔍 RAG Pipeline
 
-<p align="center">
-  <img src="./images/rag_pipeline.png" width="80%" />
-  <img src="./images/rag_pipeline1.png" width="80%" />
-
+<div align="center">
+  <img src="./images/rag_pipeline.png" width="80%" alt="RAG Pipeline"/>
+  <img src="./images/rag_pipeline1.png" width="80%" alt="RAG Pipeline 1"/>
+</div>
 
 ---
 
 # 🗂 WBS Diagram
 
-<p align="center">
-  <img src="./images/wbs_diagram.png" width="80%" />
-</p>
+<div align="center">
+  <img src="./images/wbs_diagram.png" width="80%" alt="WBS Diagram"/>
+</div>
 
 ---
 
 # 📅 일정 계획 (Gantt Chart)
 
 | 작업 항목 | 시작 | 종료 | 기간(일) |
-|----------|-------|-------|----------|
+|---|---|---|---|
 | 프로젝트 정의 및 계획 수립 | 2025-12-02 | 2025-12-02 | 1 |
 | 문서 수집 | 2025-12-02 | 2025-12-03 | 2 |
 | 데이터 전처리 및 임베딩 | 2025-12-03 | 2025-12-04 | 2 |
@@ -120,7 +121,7 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 # 🧪 기술 스택
 
 | 영역 | 기술 |
-|------|------|
+|---|---|
 | Backend | FastAPI, Python |
 | AI Engine | GPT-4-mini, LangChain |
 | Embedding | bge-m3 |
@@ -138,11 +139,14 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 # ▶ 실행 방법
 
 ### 1) 라이브러리 설치
+```bash
 pip install -r requirements.txt
-
+```
 
 ### 2) 전체실행 방법
+```bash
 ./run_app.sh
+```
 
 ---
 # 📚 문서 목록
@@ -155,14 +159,3 @@ pip install -r requirements.txt
 
 # 📄 License
 MIT License
-"""
-
-
-def generate_readme():
-    with open("README.md", "w", encoding="utf-8") as f:
-        f.write(README_CONTENT)
-    print("✅ README.md 파일 생성 완료!")
-
-
-if __name__ == "__main__":
-    generate_readme()
