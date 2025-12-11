@@ -206,18 +206,10 @@ async def chat_stream(request: ChatRequest):
 
         llm = ChatOpenAI(model="gpt-4o", temperature=0.5, streaming=True)
         
-        if custom_result.get('report'):
-            # If report is generated, just confirm it in the chat
-            confirmation_prompt = "You have successfully generated a detailed report/checklist based on the user's request. It has been sent to the 'Report Window'. Just politely inform the user in Korean that the report has been created and is available in the output panel (middle section). Do NOT repeat the report content."
-            messages = [
-                SystemMessage(content="You are a helpful ESG assistant."),
-                HumanMessage(content=confirmation_prompt)
-            ]
-        else:
-            messages = [
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=request.query)
-            ]
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=request.query)
+        ]
 
         async def event_generator():
             try:
