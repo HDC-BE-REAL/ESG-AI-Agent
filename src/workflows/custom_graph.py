@@ -3,6 +3,7 @@ from __future__ import annotations
 """LangGraph 기반 ESG 멀티 에이전트 파이프라인"""
 
 from typing import Optional, TypedDict
+import time
 
 from langgraph.graph import StateGraph, END
 
@@ -27,6 +28,14 @@ class PipelineState(TypedDict, total=False):
 _risk_orchestrator = RiskToolOrchestrator()
 _graph_builder = StateGraph(PipelineState)
 
+_REGULATION_CACHE = {"timestamp": 0.0, "result": "", "ttl": 300.0}
+_REGULATION_KEYWORDS = ["규제", "법", "법령", "compliance", "legal", "업데이트", "정책"]
+
+
+def _should_run_regulation(query: str) -> bool:
+    lowered = query.lower()
+    return any(keyword in lowered for keyword in _REGULATION_KEYWORDS)
+
 
 def _policy_node(state: PipelineState) -> PipelineState:
     state["policy"] = policy_guideline_tool(state["query"])
@@ -34,7 +43,25 @@ def _policy_node(state: PipelineState) -> PipelineState:
 
 
 def _regulation_node(state: PipelineState) -> PipelineState:
-    state["regulation"] = regulation_monitor.generate_report(state["query"])
+    query = state["query"]
+    now = time.time()
+
+    if not _should_run_regulation(query):
+        cached = _REGULATION_CACHE.get("result")
+        state["regulation"] = cached or "규제 관련 요청이 없어 직전 정보를 유지합니다."
+        return state
+
+    if (
+        _REGULATION_CACHE.get("result")
+        and now - _REGULATION_CACHE.get("timestamp", 0) < _REGULATION_CACHE.get("ttl", 300)
+    ):
+        state["regulation"] = _REGULATION_CACHE["result"]
+        return state
+
+    result = regulation_monitor.generate_report(query)
+    _REGULATION_CACHE["result"] = result
+    _REGULATION_CACHE["timestamp"] = now
+    state["regulation"] = result
     return state
 
 

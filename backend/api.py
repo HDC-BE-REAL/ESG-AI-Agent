@@ -1,3 +1,4 @@
+import logging
 from fastapi import APIRouter, UploadFile, File, HTTPException, Body, Form
 from fastapi.responses import StreamingResponse
 from typing import List, Optional, Dict, Any
@@ -62,26 +63,37 @@ def _extract_text_from_file(file_path: str, content_type: Optional[str] = None) 
 
 @router.post("/upload")
 async def upload_file(
-    conversation_id: str = Form(...),
+    conversation_id: Optional[str] = Form(None),
     file: UploadFile = File(...)
 ):
     try:
-        conversation = agent_manager.get_conversation(conversation_id)
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
+        if conversation_id:
+            conversation = agent_manager.get_conversation(conversation_id)
+            if not conversation:
+                raise HTTPException(status_code=404, detail="Conversation not found")
         file_path = os.path.join(UPLOAD_DIR, file.filename)
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
 
         file_text = _extract_text_from_file(file_path, file.content_type)
         size_bytes = os.path.getsize(file_path)
-        agent_manager.add_conversation_file(
-            conversation_id,
-            filename=file.filename,
-            path=file_path,
-            size_bytes=size_bytes,
-            text=file_text,
-        )
+        if conversation_id:
+            agent_manager.add_conversation_file(
+                conversation_id,
+                filename=file.filename,
+                path=file_path,
+                size_bytes=size_bytes,
+                text=file_text,
+            )
+        else:
+            # Legacy: 전역 uploaded_files 리스트만 갱신
+            current_files = agent_manager.get_context().get("uploaded_files", [])
+            filtered = [entry for entry in current_files if entry.get("filename") != file.filename]
+            relative_path = f"/static/uploads/{file.filename}"
+            filtered.append({"filename": file.filename, "path": relative_path})
+            if len(filtered) > 50:
+                filtered = filtered[-50:]
+            agent_manager.update_context("uploaded_files", filtered)
 
         return {
             "conversation_id": conversation_id,
@@ -189,6 +201,12 @@ async def chat(request: ChatRequest):
         file_summaries = agent_manager.list_conversation_files(conversation_id)
         file_context = agent_manager.build_file_context(conversation_id)
         file_names = [entry["filename"] for entry in file_summaries]
+        rag_snippets = agent_manager.retrieve_conversation_snippets(conversation_id, request.query)
+        rag_text = "\n\n".join(rag_snippets) if rag_snippets else "None"
+        rag_text = "\n\n".join(rag_snippets) if rag_snippets else "None"
+        rag_text = "\n\n".join(rag_snippets) if rag_snippets else "None"
+        rag_text = "\n\n".join(rag_snippets) if rag_snippets else "None"
+        rag_text = "\n\n".join(rag_snippets) if rag_snippets else "None"
         system_prompt = f"""
         You are an expert ESG AI Assistant. Provide concise, tailored answers that reflect the user's goal and constraints.
 
@@ -204,7 +222,11 @@ async def chat(request: ChatRequest):
 
         [Uploaded File Excerpts]
         {file_context if file_context else 'None'}
+
+        [Retrieved Segments from Uploaded Files]
+        {rag_text}
         
+
         [Instructions]
         - Start by tagging the user's goal/constraints in one line; if unclear, ask ONE short clarifying question, then proceed.
         - Use evidence in this priority: Regulation Updates → Policy Analysis → Risk Assessment → Report Draft → Uploaded Files → Chat History; if absent, note '해당 근거 없음'.
@@ -214,27 +236,12 @@ async def chat(request: ChatRequest):
         - Language follows the user (default Korean); avoid mixing languages. Use - or * for bullets, **bold** for emphasis, `code` for technical terms.
         - If confidence is low, mark it (신뢰도: 높음/중간/낮음) and suggest what to check next (file/regulation/data).
         - ALWAYS use MARKDOWN formatting.
+        - 업로드된 파일이나 검색된 세그먼트에서 중요 근거가 있으면 인용해 설명하라.
+        - 중요한 숫자·지표·정책명은 굵게 표시해 주목성을 높여라.
+        - 모르는 내용은 솔직하게 밝혀라
+        - 기본 언어는 한국어이지만, 사용자가 영어로 질문하면 동일 언어로 답하라.
 
-        [Output Format - keep structured but flexible]
-        ## 🎯 목표/제약
-        - (1줄; 모르면 질문 1개)
-
-        ## 📊 요약
-        - 2~3문장 핵심
-
-        ## 🔍 근거 (신뢰도 표기)
-        - 근거 1 (신뢰도: …)
-        - 근거 2
-        - 근거 3 또는 '추가 데이터 필요: ...'
-
-        ## 💡 권고사항
-        - 권고 1 (사용자 목표/제약 반영)
-        - 권고 2
-
-        ## ▶️ 다음 행동
-        - 실행 제안 1~2개 + 필요한 확인사항 1개
-
-        If you don't know, say so and recommend running the appropriate agent (Regulation, Policy, Risk, Report).
+        If you don't know, say so and recommend running the appropriate agent (Regulation, Policy, Risk, Report)
         """
         
         # 3. Call LLM (GPT-4o)
@@ -262,6 +269,8 @@ async def chat(request: ChatRequest):
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
     try:
+        context = agent_manager.get_context()
+        # SSE 스트림도 동일하게 conversation_id를 요구
         # 1. Conversation Setup (User's Logic)
         conversation_id = request.conversation_id
         if conversation_id:
@@ -273,6 +282,12 @@ async def chat_stream(request: ChatRequest):
             conversation_id = conversation["id"]
 
         history = agent_manager.get_conversation_history(conversation_id)
+        history_text = "\n".join(
+            [
+                f"User: {entry['content']}" if entry.get('role') == 'user' else f"Assistant: {entry['content']}"
+                for entry in history
+            ]
+        )
         # 2. Intent Detection (Report Logic)
         # Check if the user specifically wants to *generate* or *create* a report/checklist/document.
         class IntentAnalysis(BaseModel):
@@ -307,7 +322,7 @@ async def chat_stream(request: ChatRequest):
 
         report_content = None
         report_error = None
-        context = agent_manager.get_context()
+        
 
         # 3. Report Generation (If requested)
         if is_report_request:
@@ -409,6 +424,8 @@ async def chat_stream(request: ChatRequest):
         file_summaries = agent_manager.list_conversation_files(conversation_id)
         file_context = agent_manager.build_file_context(conversation_id)
         file_names = [entry["filename"] for entry in file_summaries]
+        rag_snippets = agent_manager.retrieve_conversation_snippets(conversation_id, request.query)
+        rag_text = "\n\n".join(rag_snippets) if rag_snippets else "None"
 
         system_prompt = f"""
         You are an expert ESG AI Assistant. Provide concise, tailored answers.
@@ -423,19 +440,18 @@ async def chat_stream(request: ChatRequest):
         [Uploaded File Excerpts]
         {file_context if file_context else 'None'}
 
-        [Instructions]
-        - Tag user goal.
-        - Use evidence priority: Regulation -> Policy -> Risk -> Report -> Files.
-        - Tone: Professional, friendly, concise.
-        - Language: Korean default.
-        - ALWAYS use MARKDOWN.
-        
-        [Output Format]
-        ## 🎯 목표/제약
-        ## 📊 요약
-        ## 🔍 근거
-        ## 💡 권고사항
-        ## ▶️ 다음 행동
+
+
+        [Retrieved Segments from Uploaded Files]
+        {rag_text}
+
+        [Guidelines]
+        - 질문 의도에 맞춰 유연하게 Markdown을 사용하되, 필요하면 요약/근거/권고 등으로 자연스럽게 나눠라.
+        - Regulation 관련 질문에는 최신 규제 업데이트를 우선적으로 언급하라.
+        - 업로드 파일/검색된 세그먼트에서 나온 핵심 증거를 우선 인용하라.
+        - 주요 수치나 정책명은 **굵게** 표시해 강조하고, 근거가 부족하면 솔직히 말하고 어떤 에이전트를 호출해야 할지 제안하라.
+        - 기본 언어는 한국어이며, 사용자가 영어로 질문하면 영어로 답하라.
+
         """
         
         if report_content:
@@ -517,3 +533,4 @@ async def chat_stream(request: ChatRequest):
         traceback.print_exc()
         print(f"❌ [API Error] {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
+LOGGER = logging.getLogger(__name__)
