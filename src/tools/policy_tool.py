@@ -199,9 +199,11 @@ class PolicyTool:
         # LangChain 호환을 위해 config 인자를 허용하지만 현재는 미사용
         return self.__call__(data)
 
+
         
 # Graph/LangGraph에서 import할 실제 인스턴스
 policy_guideline_tool = PolicyTool()
 
 # 하위 호환성을 위해 이전 이름도 유지
 policy_tool = policy_guideline_tool
+

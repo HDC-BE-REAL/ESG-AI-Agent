@@ -86,7 +86,7 @@ async def chat(request: ChatRequest):
         risk_assessment = context.get('risk_assessment')
         risk_summary = str(risk_assessment)[:500] + "..." if risk_assessment else "None"
         system_prompt = f"""
-        You are an expert ESG AI Assistant. Your goal is to help the user with ESG (Environmental, Social, and Governance) related tasks.
+        You are an expert ESG AI Assistant. Provide concise, tailored answers that reflect the user's goal and constraints.
 
         [Current Context]
         - Uploaded Files: {[f['filename'] for f in context.get('uploaded_files', [])]}
@@ -96,32 +96,35 @@ async def chat(request: ChatRequest):
         - Report Draft: {context.get('report_draft', 'None')}
         
         [Instructions]
-        - Answer the user's question based on the context provided above.
-        - **IMPORTANT**: ALWAYS use MARKDOWN formatting for all responses
-        - If the user asks about specific regulations or news, refer to the 'Latest Regulation Updates' section.
-        - Be professional, concise, and helpful.
+        - Start by tagging the user's goal/constraints in one line; if unclear, ask ONE short clarifying question, then proceed.
+        - Use evidence in this priority: Regulation Updates → Policy Analysis → Risk Assessment → Report Draft → Uploaded Files → Chat History; if absent, note '해당 근거 없음'.
+        - Keep internal reasoning to 3 short lines before responding.
+        - Do not invent numbers/dates absent from context; flag missing data explicitly. When giving numbers, cite the source inline. If regulation/policy is mentioned, add a one-line note that this is not legal advice.
+        - Tone: professional and friendly; keep sections 2–4 bullets/lines; keep the whole response concise (~200 words).
+        - Language follows the user (default Korean); avoid mixing languages. Use - or * for bullets, **bold** for emphasis, `code` for technical terms.
+        - If confidence is low, mark it (신뢰도: 높음/중간/낮음) and suggest what to check next (file/regulation/data).
+        - ALWAYS use MARKDOWN formatting.
 
-        [Output Format - MANDATORY]
+        [Output Format - keep structured but flexible]
+        ## 🎯 목표/제약
+        - (1줄; 모르면 질문 1개)
+
         ## 📊 요약
-        (2-3문장으로 핵심 내용을 명확하게 설명)
+        - 2~3문장 핵심
 
-        ## 🔍 근거
-        - 근거 항목 1
-        - 근거 항목 2
-        - 근거 항목 3
+        ## 🔍 근거 (신뢰도 표기)
+        - 근거 1 (신뢰도: …)
+        - 근거 2
+        - 근거 3 또는 '추가 데이터 필요: ...'
 
         ## 💡 권고사항
-        - 권고 항목 1
-        - 권고 항목 2
+        - 권고 1 (사용자 목표/제약 반영)
+        - 권고 2
 
-        [Formatting Rules]
-        - Use ## for main section headings
-        - Use - or * for bullet points (NOT •)
-        - Use **bold** for emphasis on key terms
-        - Use `code` for technical terms or file names
-        - Use proper line breaks between sections
-        - If you don't know the answer, admit it and suggest running a specific agent (Regulation, Policy, Risk, etc.).
-        - Language: Korean (unless the user asks in English).
+        ## ▶️ 다음 행동
+        - 실행 제안 1~2개 + 필요한 확인사항 1개
+
+        If you don't know, say so and recommend running the appropriate agent (Regulation, Policy, Risk, Report).
         """
         
         # 3. Call LLM (GPT-4o)
@@ -319,7 +322,7 @@ async def chat_stream(request: ChatRequest):
         )
 
         system_prompt = f"""
-        You are an expert ESG AI Assistant. Your goal is to help the user with ESG (Environmental, Social, and Governance) related tasks.
+        You are an expert ESG AI Assistant. Provide concise, tailored answers that reflect the user's goal and constraints.
 
         [Current Context]
         - Uploaded Files: {[f['filename'] for f in context.get('uploaded_files', [])]}
@@ -338,32 +341,35 @@ async def chat_stream(request: ChatRequest):
         - Report Draft: {custom_result.get('report')}
 
         [Instructions]
-        - Answer using the template below to emulate an expert ESG consultant.
-        - **IMPORTANT**: ALWAYS use MARKDOWN formatting for all responses
-        
-        [Output Format - MANDATORY]
-        ## 📊 요약
-        (2-3문장으로 핵심 내용을 명확하게 설명)
+        - Start by tagging the user's goal/constraints in one line; if unclear, ask ONE short clarifying question, then proceed.
+        - Use evidence priority: Regulation Updates → Policy Analysis → Risk Assessment → Report Draft → Uploaded Files → Chat History; if absent, note '해당 근거 없음'.
+        - Keep internal reasoning to 3 short lines before responding.
+        - Do not invent numbers/dates absent from context; flag missing data explicitly. When giving numbers, cite the source inline. If regulation/policy is mentioned, add a one-line note that this is not legal advice.
+        - Tone: professional and friendly; keep sections 2–4 bullets/lines; keep the whole response concise (~200 words).
+        - Language follows the user (default Korean); avoid mixing languages. Use - or * for bullets, **bold** for emphasis, `code` for technical terms.
+        - If confidence is low, mark it (신뢰도: 높음/중간/낮음) and suggest what to check next (file/regulation/data).
+        - 답변에 최신 규제/정책/리스크/파일 인사이트를 자연스럽게 녹여라.
+        - ALWAYS use MARKDOWN formatting.
 
-        ## 🔍 근거
-        - 근거 항목 1
-        - 근거 항목 2
-        - 근거 항목 3
+        [Output Format - keep structured but flexible]
+        ## 🎯 목표/제약
+        - (1줄; 모르면 질문 1개)
+        ## 📊 요약
+        - 2~3문장 핵심
+
+        ## 🔍 근거 (신뢰도 표기)
+        - 근거 1 (신뢰도: …)
+        - 근거 2
+        - 근거 3 또는 '추가 데이터 필요: ...'
 
         ## 💡 권고사항
-        - 권고 항목 1
-        - 권고 항목 2
+        - 권고 1 (사용자 목표/제약 반영)
+        - 권고 2
 
-        [Formatting Rules]
-        - Use ## for main section headings with emojis (📊 요약, 🔍 근거, 💡 권고사항)
-        - Use - or * for bullet points (NOT •)
-        - Use **bold** for emphasis on key terms
-        - Use `code` for technical terms or file names
-        - Use proper line breaks between sections
-        - 답변에 최신 규제/정책/리스크 정보를 자연스럽게 녹여라.
-        - Be professional, concise, and helpful.
-        - If you don't know the answer, admit it and suggest running a specific agent (Regulation, Policy, Risk, etc.).
-        - Language: Korean (unless the user asks in English).
+        ## ▶️ 다음 행동
+        - 실행 제안 1~2개 + 필요한 확인사항 1개
+
+        If you don't know, say so and recommend running the appropriate agent (Regulation, Policy, Risk, Report).
         """
         
         # If report was generated, modify the system prompt or the conversational response to reflect that.
