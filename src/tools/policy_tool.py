@@ -167,6 +167,27 @@ class PolicyTool:
 
         return base_info + "\n\n" + result
 
+    def _normalize_state(self, data: Any) -> dict:
+        """허용된 입력(str 또는 dict)을 LangGraph 상태 형태로 변환"""
+        if isinstance(data, str):
+            return {"query": data}
+        if isinstance(data, dict):
+            if "query" not in data:
+                raise ValueError("PolicyTool 상태에는 'query' 키가 필요합니다.")
+            return data
+        raise TypeError("PolicyTool 입력은 문자열 또는 {'query': str} 형태여야 합니다.")
+
+    def __call__(self, data: Any) -> str:
+        state = self._normalize_state(data)
+        return self.run(state)
+
+    def invoke(self, data: Any, *, config: Any | None = None) -> str:
+        # LangChain 호환을 위해 config 인자를 허용하지만 현재는 미사용
+        return self.__call__(data)
+
 
 # Graph/LangGraph에서 import할 실제 인스턴스
-policy_tool = PolicyTool()
+policy_guideline_tool = PolicyTool()
+
+# 하위 호환성을 위해 이전 이름도 유지
+policy_tool = policy_guideline_tool
