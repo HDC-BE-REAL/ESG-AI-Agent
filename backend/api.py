@@ -428,7 +428,7 @@ async def chat_stream(request: ChatRequest):
         rag_text = "\n\n".join(rag_snippets) if rag_snippets else "None"
 
         system_prompt = f"""
-        You are an expert ESG AI Assistant. Provide concise, tailored answers.
+        You are an expert ESG AI Assistant. Provide concise, tailored answers that reflect the user's goal and constraints.
 
         [Current Context]
         - Uploaded Files: {file_names if file_names else 'None'}

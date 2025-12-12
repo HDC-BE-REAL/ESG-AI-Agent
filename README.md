@@ -15,7 +15,7 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 ---
 
 ## 🧭 프로젝트 기간
-2025-12-02 ~ 2025-12-10
+2025-12-02 ~ 2025-12-11
 
 ---
 
@@ -64,15 +64,22 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 ---
 
 
-# 🔌 3. API Specification
+# 🔌 3. API Specification (현재 구현 기준)
 
 | 메서드 | 경로 | 설명 |
 |--------|------|--------|
-| POST | /policy/summary | ESG 문서 요약 |
-| POST | /policy/compare | 문서 비교 |
-| POST | /risk/diagnose | 리스크 분석 |
-| POST | /report/generate | ESG 보고서 생성 |
-| GET | /monitor/regulation | 규제 변경 감지 |
+| POST | /upload | 파일 업로드 및 컨텍스트 공유 |
+| GET  | /context | 현재 공유 컨텍스트 조회 |
+| POST | /agent/{agent_type} | policy / regulation / risk / report / custom 에이전트 실행 |
+| POST | /chat | 비스트리밍 챗 응답 (컨텍스트·오케스트레이션 포함) |
+| POST | /chat/stream | SSE 스트리밍 챗 응답 |
+
+**기능 매핑 (agent_type별 동작)**
+- `policy`: ESG 문서 요약/비교
+- `regulation`: 규제 변경 감지/요약
+- `risk`: 프로젝트 기반 리스크 분석
+- `report`: ESG 보고서 초안 생성
+- `custom`: 네 모듈을 동시에 실행해 컨텍스트 업데이트
 
 
 ---
@@ -113,8 +120,8 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 | RAG 아키텍처 구성 | 2025-12-04 | 2025-12-05 | 2 |
 | 핵심 모듈 개발 | 2025-12-05 | 2025-12-07 | 3 |
 | UI 및 모니터링 기능 개발 | 2025-12-07 | 2025-12-08 | 2 |
-| 통합 테스트 | 2025-12-08 | 2025-12-09 | 2 |
-| 발표 | 2025-12-10 | 2025-12-10 | 1 |
+| 통합 테스트/안정화 | 2025-12-08 | 2025-12-10 | 3 |
+| 발표/인수 | 2025-12-11 | 2025-12-11 | 1 |
 
 ---
 
@@ -123,7 +130,7 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 | 영역 | 기술 |
 |---|---|
 | Backend | FastAPI, Python |
-| AI Engine | GPT-4-mini, LangChain |
+| AI Engine | GPT-4o, LangChain, LangGraph, ChatOpenAI |
 | Embedding | bge-m3 |
 | DB | ChromaDB |
 | Parsing | PyPDF, PyMuPDF, Tesseract |
