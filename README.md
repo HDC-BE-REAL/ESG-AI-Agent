@@ -3,7 +3,7 @@
 AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 
 <div align="center">
-  <img src="./images/banner.png" width="80%" alt="ESG Insight Agent Banner"/>
+  <img src="./images/AI_agent.png" width="80%" alt="ESG Insight Agent Banner"/>
 </div>
 
 ---
@@ -87,8 +87,7 @@ AI-powered ESG Policy Analysis, Risk Diagnostics & Automated Reporting System
 # 🏗️ System Architecture
 
 <div align="center">
-  <img src="./images/system_architecture.png" width="80%" alt="System Architecture"/>
-  <img src="./images/system_architecture1.png" width="80%" alt="System Architecture 1"/>
+  <img src="./images/ESG_Agent_RAG_Architecture.png" width="80%" alt="System Architecture"/>
 </div>
 
 ---
@@ -162,7 +161,4 @@ pip install -r requirements.txt
 - 🛠 설계서: `README.md`
 - 📊 상태 점검표: `docs/mid_review.md`
 
----
 
-# 📄 License
-MIT License
